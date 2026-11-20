@@ -1,0 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-800 antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Realistic A4 Paper Simulation */
+.a4-paper-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  background: white;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* Screen display scale helper */
+@media screen {
+  .a4-print-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+  }
+}
+
+/* Dot Leader Styling for Daftar Isi */
+.dot-leader-row {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+}
+
+.dot-leader-title {
+  flex-shrink: 0;
+  max-width: 80%;
+  padding-right: 0.25rem;
+}
+
+.dot-leader-dots {
+  flex-grow: 1;
+  border-bottom: 1px dotted #333;
+  margin-bottom: 4px;
+  min-width: 2rem;
+}
+
+.dot-leader-page {
+  flex-shrink: 0;
+  padding-left: 0.5rem;
+  text-align: right;
+  min-width: 1.5rem;
+}
+
+/* Hanging Indent for Daftar Pustaka */
+.hanging-indent {
+  padding-left: 1.27cm;
+  text-indent: -1.27cm;
+}
+
+/* First line paragraph indent */
+.first-line-indent {
+  text-indent: 1cm;
+}
+
+.first-line-indent-skripsi {
+  text-indent: 1.27cm;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Buka semua pembatas tinggi/scroll agar seluruh halaman ikut tercetak. */
+  .app-shell,
+  .app-content,
+  .editor-shell,
+  .editor-main,
+  .preview-root,
+  .preview-scroll {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+  }
+
+  .preview-scale {
+    transform: none !important;
+    transition: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .preview-scale > * + * {
+    margin-top: 0 !important;
+  }
+
+  .a4-paper-sheet {
+    width: 210mm !important;
+    /* 296mm mencegah halaman kosong akibat pembulatan 1px di Chrome. */
+    height: 296mm !important;
+    min-height: 296mm !important;
+    max-height: 296mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 auto !important;
+    overflow: hidden !important;
+    page-break-after: always;
+    break-after: page;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .a4-paper-sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+}
