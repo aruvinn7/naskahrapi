@@ -101,9 +101,9 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200/90 px-4 md:px-6 flex items-center justify-between z-30 shrink-0 shadow-2xs no-print">
+    <header className="min-h-16 py-2 bg-white border-b border-slate-200/90 px-3 md:px-6 flex flex-wrap items-center justify-between gap-y-2 z-30 shrink-0 shadow-2xs no-print">
       {/* Left: Document info matching screenshot */}
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-3 min-w-0">
         {onNavigateHome && (
           <Button
             variant="outline"
@@ -121,32 +121,32 @@ export const Header: React.FC<HeaderProps> = ({
           <FileText className="w-5 h-5" />
         </div>
 
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center space-x-2">
-            <span className="font-semibold text-slate-800 text-sm md:text-base tracking-tight truncate max-w-[200px] md:max-w-xs">
+            <span className="font-semibold text-slate-800 text-sm md:text-base tracking-tight truncate max-w-[150px] sm:max-w-[200px] md:max-w-xs">
               {doc.fileName || 'MAKALAH.docx'}
             </span>
-            <Badge variant="success" className="px-2 py-0.5 text-[11px] font-medium">
+            <Badge variant="success" className="px-2 py-0.5 text-[11px] font-medium hidden sm:inline-flex">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
               Siap diunduh
             </Badge>
           </div>
-          <div className="text-[11px] text-slate-500 flex items-center space-x-1.5 mt-0.5 font-mono">
-            <span>{Math.max(1, Math.round(doc.rawText.length / 1024))} KB</span>
-            <span>·</span>
-            <span className="capitalize">{config.template}</span>
-            <span>·</span>
+          <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-1.5 mt-0.5 font-mono">
+            <span className="hidden sm:inline">{Math.max(1, Math.round(doc.rawText.length / 1024))} KB</span>
+            <span className="hidden sm:inline">·</span>
+            <span className="capitalize hidden sm:inline">{config.template}</span>
+            <span className="hidden sm:inline">·</span>
             <span>± {totalPages} halaman A4</span>
-            <span>·</span>
-            <span>{new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-            <span>·</span>
+            <span className="hidden md:inline">·</span>
+            <span className="hidden md:inline">{new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+            <span className="hidden md:inline">·</span>
             <span className="text-emerald-600">Autosave</span>
           </div>
         </div>
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center space-x-2 md:space-x-2.5">
+      <div className="flex flex-wrap items-center justify-end gap-y-2 space-x-2 md:space-x-2.5">
         {/* Kosongkan Editor Button */}
         {onClearEditor && (
           <Button

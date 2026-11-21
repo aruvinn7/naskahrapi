@@ -8,6 +8,8 @@ const config: DocumentConfig = {
   template: 'makalah',
   ...TEMPLATE_PRESETS.makalah,
   fontFamily: 'Times New Roman',
+  hangingIndent: 1.27,
+  tableStyle: { borderWidth: 1, headerBold: true, cellAlignment: 'left' },
   alignment: 'justify',
   headingRules: {
     h1: { bold: true, italic: false, allCaps: true, alignment: 'center', spaceBefore: 24, spaceAfter: 18 },
@@ -15,7 +17,8 @@ const config: DocumentConfig = {
     h3: { bold: true, italic: true, allCaps: false, alignment: 'left', spaceBefore: 12, spaceAfter: 6 },
     numberingFormat: 'bab-roman',
     babTitleStyle: 'separate',
-    h2Numbering: 'numeric'
+    h2Numbering: 'numeric',
+    numberTitleGapCm: 0
   },
   pageSetup: {
     paperSize: 'a4',

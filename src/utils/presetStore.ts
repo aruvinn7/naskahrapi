@@ -1,5 +1,10 @@
 import { DocumentConfig, SavedPreset } from '../types/document';
-import { DEFAULT_COVER_LAYOUT, DEFAULT_HEADING_RULES, DEFAULT_PAGE_SETUP } from './formatEngine';
+import {
+  DEFAULT_COVER_LAYOUT,
+  DEFAULT_HEADING_RULES,
+  DEFAULT_PAGE_SETUP,
+  DEFAULT_TABLE_STYLE
+} from './formatEngine';
 import { TEMPLATE_DESCRIPTIONS, TEMPLATE_PRESETS } from './templatePresets';
 
 const STORAGE_KEY = 'skripsira pi-presets-v1';
@@ -23,6 +28,7 @@ function seedPresets(): SavedPreset[] {
       fontSize: { ...preset.fontSize },
       lineSpacing: preset.lineSpacing,
       firstLineIndent: preset.firstLineIndent,
+      hangingIndent: 1.27,
       alignment: 'justify',
       headingRules: {
         ...DEFAULT_HEADING_RULES,
@@ -32,6 +38,7 @@ function seedPresets(): SavedPreset[] {
       },
       pageSetup: { ...DEFAULT_PAGE_SETUP },
       coverLayout: { ...DEFAULT_COVER_LAYOUT },
+      tableStyle: { ...DEFAULT_TABLE_STYLE },
       rules: {
         margin: true,
         font: true,
@@ -39,10 +46,12 @@ function seedPresets(): SavedPreset[] {
         line_spacing: true,
         indent: true,
         alignment: true,
+        heading_spacing: true,
         clean_markdown: true,
         clean_chatter: true,
         numbering: true,
         hanging_indent: true,
+        table_format: true,
         page_numbers: true,
         header_footer: true
       }
@@ -126,7 +135,8 @@ export function importPresetsJson(presets: SavedPreset[], json: string): SavedPr
         ...p.config,
         headingRules: { ...DEFAULT_HEADING_RULES, ...(p.config.headingRules || {}) },
         pageSetup: { ...DEFAULT_PAGE_SETUP, ...(p.config.pageSetup || {}) },
-        coverLayout: { ...DEFAULT_COVER_LAYOUT, ...(p.config.coverLayout || {}) }
+        coverLayout: { ...DEFAULT_COVER_LAYOUT, ...(p.config.coverLayout || {}) },
+        tableStyle: { ...DEFAULT_TABLE_STYLE, ...(p.config.tableStyle || {}) }
       }
     }));
   if (valid.length === 0) throw new Error('File preset tidak berisi preset yang valid.');

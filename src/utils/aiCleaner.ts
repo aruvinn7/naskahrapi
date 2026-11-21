@@ -7,6 +7,7 @@ import {
   DocumentConfig
 } from '../types/document';
 import { extractCoverData } from './cover';
+import { renumberCaptions } from './figureNumbering';
 
 // List of conversational AI filler patterns (Indonesian and English)
 const AI_INTRO_PATTERNS = [
@@ -281,6 +282,26 @@ export function normalizePandocArtifacts(text: string): string {
     .join('\n');
 }
 
+/**
+ * Memecah aliran teks DAFTAR PUSTAKA yang menempel menjadi beberapa entri.
+ * Batas entri: akhir kalimat (". ") yang langsung diikuti pola penulis APA
+ * diakhiri "(Tahun)." — mis. "...145-162. Li, P., & Ren, S. (2023). Making…"
+ * dipotong sebelum "Li". Token pertama harus menyerupai nama keluarga/organisasi
+ * (kata kapital+huruf kecil, atau akronim kapital semua seperti "UNESCO"),
+ * bukan inisial tunggal, agar daftar penulis ("…M. A., & Ren, S. (2023)") tidak
+ * terpotong di tengah. Segmen penulis dibatasi 150 karakter dan tidak boleh
+ * memuat ":" atau "(" agar teks seperti "arXiv:2304.03271. Mytton, D. (2021)"
+ * tidak salah dipotong di tengah satu entri.
+ */
+export function splitBibliographyEntries(text: string): string[] {
+  const boundary =
+    /(?<=[.!?])\s+(?=(?:[A-ZÀ-Ý]{2,}|[A-ZÀ-Ý][a-zà-ÿ]{1,})[^():]{0,150}?\(\s*(?:19|20)\d{2}[a-z]?\s*\)\.)/g;
+  return text
+    .split(boundary)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 export function parseRawDocument(rawText: string, config: DocumentConfig): ParsedDocument {
   const { cleanedText, issues } = cleanAiResiduals(rawText, config.rules['clean_chatter'], config.rules['clean_markdown']);
 
@@ -327,13 +348,54 @@ export function parseRawDocument(rawText: string, config: DocumentConfig): Parse
 
   let bufferParagraph = '';
 
+  // Penutup surat di KATA PENGANTAR: "Jakarta, 19 November 2026" lalu nama
+  // penulis di baris bawahnya. Dikenali agar tidak digabung jadi satu paragraf
+  // rata kiri (format baku: dua baris, rata kanan).
+  const parseSignature = (
+    text: string
+  ): { dateLine: string; place: string; date: string; signer: string } | null => {
+    const match = text.match(
+      /^([A-ZÀ-Ý][A-Za-zÀ-ÿ.'\-\s]{1,40}?)\s*,\s*((?:(?:\d{1,2})\s+)?[A-Za-zÀ-ÿ]+\s+(?:19|20)\d{2})(?:\s+(.+))?$/
+    );
+    if (!match) return null;
+    const place = match[1].trim();
+    const date = match[2].trim();
+    return {
+      place,
+      date,
+      dateLine: `${place}, ${date}`,
+      signer: (match[3] ?? '').trim()
+    };
+  };
+
+  const isLikelySigner = (text: string): boolean =>
+    text.length > 0 &&
+    text.length <= 60 &&
+    !/^(BAB|DAFTAR|KATA\s+PENGANTAR|ABSTRAK|ABSTRACT)\b/i.test(text) &&
+    !/^[-=_]{3,}$/.test(text) &&
+    !/[.!?]$/.test(text);
+
   const flushParagraph = () => {
     if (!bufferParagraph.trim()) return;
 
-    // Check if it's bibliography
-    let type: BlockType = 'paragraph';
+    // Entri DAFTAR PUSTAKA: aliran teks yang menempel (tanpa baris kosong /
+    // penanda list dari output AI) dipisah per sumber terlebih dahulu.
     if (currentSection.type === 'daftar_pustaka') {
-      type = 'daftar_pustaka_item';
+      for (const entry of splitBibliographyEntries(bufferParagraph.trim())) {
+        wordCounter += entry.split(/\s+/).length;
+        blockCounter++;
+        const pustakaBlock: DocumentBlock = {
+          id: `blk-${blockCounter}`,
+          type: 'daftar_pustaka_item',
+          rawContent: entry,
+          formattedContent: formatInlineMarkdown(entry),
+          pageEstimate: pageCounter
+        };
+        currentSection.blocks.push(pustakaBlock);
+        lastListBlockId = pustakaBlock.id;
+      }
+      bufferParagraph = '';
+      return;
     }
 
     const words = bufferParagraph.trim().split(/\s+/).length;
@@ -342,13 +404,12 @@ export function parseRawDocument(rawText: string, config: DocumentConfig): Parse
 
     const flushed: DocumentBlock = {
       id: `blk-${blockCounter}`,
-      type,
+      type: 'paragraph',
       rawContent: bufferParagraph.trim(),
       formattedContent: formatInlineMarkdown(bufferParagraph.trim()),
       pageEstimate: pageCounter
     };
     currentSection.blocks.push(flushed);
-    if (type === 'daftar_pustaka_item') lastListBlockId = flushed.id;
     bufferParagraph = '';
   };
 
@@ -439,6 +500,35 @@ export function parseRawDocument(rawText: string, config: DocumentConfig): Parse
       });
       lastListBlockId = null;
       continue;
+    }
+
+    // Penutup KATA PENGANTAR: "Jakarta, 19 November 2026" lalu nama penulis.
+    // Dibuat blok sendiri agar tampil dua baris rata kanan, bukan satu paragraf.
+    if (currentSection.type === 'kata_pengantar') {
+      const signature = parseSignature(plainLine);
+      if (signature) {
+        flushParagraph();
+        let signer = signature.signer;
+        if (!signer) {
+          const nextLine = (lines[i + 1] ?? '').trim();
+          if (isLikelySigner(nextLine)) {
+            signer = nextLine;
+            i++;
+          }
+        }
+        blockCounter++;
+        addWords(signature.dateLine);
+        if (signer) addWords(signer);
+        currentSection.blocks.push({
+          id: `blk-${blockCounter}`,
+          type: 'signature',
+          rawContent: [signature.dateLine, signer].filter(Boolean).join('\n'),
+          formattedContent: [signature.dateLine, signer].filter(Boolean).join('\n'),
+          meta: { place: signature.place, date: signature.date, signer }
+        });
+        lastListBlockId = null;
+        continue;
+      }
     }
 
     // Isi DAFTAR ISI / DAFTAR TABEL / DAFTAR GAMBAR dibangkitkan ulang dari
@@ -697,18 +787,68 @@ export function parseRawDocument(rawText: string, config: DocumentConfig): Parse
   applyCaptionList('daftar_tabel', 'DAFTAR TABEL', 'daftar_tabel_item', tableEntries);
   applyCaptionList('daftar_gambar', 'DAFTAR GAMBAR', 'daftar_gambar_item', figureEntries);
 
-  // Ensure Daftar Isi exists or auto-inject if requested
-  const hasDaftarIsi = sections.some(s => s.type === 'daftar_isi');
-  if (!hasDaftarIsi) {
+  // Daftar Isi otomatis: jika dokumen punya BAB/bagian besar tapi tidak
+  // mencantumkan DAFTAR ISI, section dibuatkan agar pratinjau & Word tetap
+  // menampilkan daftar isi (entri dibangkitkan dari struktur heading).
+  const hasDaftarIsi = sections.some((section) => section.type === 'daftar_isi');
+  const firstBabIndex = sections.findIndex((section) => section.type === 'bab');
+
+  if (!hasDaftarIsi && firstBabIndex >= 0) {
+    const daftarIsiSection: DocumentSection = {
+      id: 'sec-daftar-isi',
+      title: 'DAFTAR ISI',
+      type: 'daftar_isi',
+      blockCount: 0,
+      startPageEstimate: 1,
+      blocks: []
+    };
+    sections.splice(firstBabIndex, 0, daftarIsiSection);
+    issues.push({
+      id: 'auto-daftar-isi',
+      type: 'info',
+      category: 'struktur',
+      title: 'Daftar Isi dibuat otomatis',
+      description:
+        'Dokumen belum punya DAFTAR ISI, jadi dibuatkan otomatis dari Bab & Sub-bab yang terdeteksi.',
+      autoFixAvailable: false
+    });
+  } else if (!hasDaftarIsi) {
     issues.push({
       id: 'missing-daftar-isi',
       type: 'info',
       category: 'struktur',
       title: 'Daftar Isi Belum Ada',
-      description: 'Daftar Isi otomatis dapat dibuatkan dari struktur Bab & Sub-bab.',
-      autoFixAvailable: true
+      description:
+        'Belum ada Bab yang terdeteksi, jadi Daftar Isi belum bisa dibuat otomatis.',
+      autoFixAvailable: false
     });
   }
+
+  // Urutan baku bagian awal dokumen (cover → abstrak → kata pengantar →
+  // daftar isi → daftar tabel → daftar gambar) dinormalkan setelah semua
+  // injeksi, karena injeksi berjalan di posisi berbeda-beda. Bagian lain
+  // (BAB, daftar pustaka, lampiran, section tak dikenal) memakai rank di
+  // bawahnya sehingga urutan tempelan user tetap dipertahankan.
+  const FRONT_MATTER_RANK: Record<string, number> = {
+    cover: 0,
+    abstrak: 1,
+    kata_pengantar: 2,
+    daftar_isi: 3,
+    daftar_tabel: 4,
+    daftar_gambar: 5
+  };
+  const orderedSections = sections
+    .map((section, index) => ({
+      section,
+      key: [FRONT_MATTER_RANK[section.type] ?? 6, index] as [number, number]
+    }))
+    .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1])
+    .map((entry) => entry.section);
+  sections.splice(0, sections.length, ...orderedSections);
+
+  // Normalisasi penomoran caption gambar/tabel per BAB + regenerasi
+  // DAFTAR GAMBAR / DAFTAR TABEL dari caption yang ada.
+  renumberCaptions({ sections } as ParsedDocument);
 
   // Total estimated pages
   const totalWords = wordCounter;

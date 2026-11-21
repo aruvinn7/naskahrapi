@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Menu, PanelLeft, Sliders, Sparkles } from 'lucide-react';
 import { AppSidebar, NavPage } from './components/AppSidebar';
 import { HomePage } from './components/HomePage';
 import { PedomanPage } from './components/PedomanPage';
@@ -20,11 +20,18 @@ import {
 import { parseRawDocument } from './utils/aiCleaner';
 import { SAMPLE_AI_RAW_TEXT } from './data/sampleDocument';
 import { applyKbbiCorrections } from './utils/kbbiCorrector';
+import { FOREIGN_TERMS, isBibliographySection, italicizeTerm } from './utils/foreignTermCorrector';
+import { compressImageFile, renumberCaptions } from './utils/figureNumbering';
 import { sortBibliographyBlocks } from './utils/citationHelper';
 import { applyTemplatePreset } from './utils/templatePresets';
 import { isTitleBlock, PaginationInfo } from './utils/previewLayout';
 import { createBlankCover, normalizeCover } from './utils/cover';
-import { DEFAULT_HEADING_RULES, DEFAULT_PAGE_SETUP, DEFAULT_COVER_LAYOUT } from './utils/formatEngine';
+import {
+  DEFAULT_HEADING_RULES,
+  DEFAULT_PAGE_SETUP,
+  DEFAULT_COVER_LAYOUT,
+  DEFAULT_TABLE_STYLE
+} from './utils/formatEngine';
 import { DetectedDocumentType } from './utils/formatDiagnosis';
 
 const STORAGE_KEY = 'skripsira pi-state-v2';
@@ -46,11 +53,13 @@ const DEFAULT_CONFIG: DocumentConfig = {
     caption: 10
   },
   lineSpacing: 1.5,
-  firstLineIndent: 1.0,
+  firstLineIndent: 0.75,
+  hangingIndent: 1.27,
   alignment: 'justify',
   headingRules: DEFAULT_HEADING_RULES,
   pageSetup: DEFAULT_PAGE_SETUP,
   coverLayout: DEFAULT_COVER_LAYOUT,
+  tableStyle: DEFAULT_TABLE_STYLE,
   rules: {
     margin: true,
     font: true,
@@ -58,10 +67,12 @@ const DEFAULT_CONFIG: DocumentConfig = {
     line_spacing: true,
     indent: true,
     alignment: true,
+    heading_spacing: true,
     clean_markdown: true,
     clean_chatter: true,
     numbering: true,
     hanging_indent: true,
+    table_format: true,
     page_numbers: true,
     header_footer: true
   }
@@ -70,7 +81,7 @@ const DEFAULT_CONFIG: DocumentConfig = {
 const TEMPLATES: DocumentTemplate[] = ['makalah', 'skripsi', 'jurnal', 'kustom'];
 const FONT_FAMILIES: DocumentConfig['fontFamily'][] = ['Times New Roman', 'Arial', 'Calibri'];
 
-function sanitizeConfig(raw: Partial<DocumentConfig> | undefined): DocumentConfig {
+export function sanitizeConfig(raw: Partial<DocumentConfig> | undefined): DocumentConfig {
   if (!raw) return DEFAULT_CONFIG;
 
   return {
@@ -84,15 +95,36 @@ function sanitizeConfig(raw: Partial<DocumentConfig> | undefined): DocumentConfi
       : DEFAULT_CONFIG.fontFamily,
     margin: { ...DEFAULT_CONFIG.margin, ...(raw.margin || {}) },
     fontSize: { ...DEFAULT_CONFIG.fontSize, ...(raw.fontSize || {}) },
+    hangingIndent:
+      typeof raw.hangingIndent === 'number' && Number.isFinite(raw.hangingIndent)
+        ? Math.min(4, Math.max(0, raw.hangingIndent))
+        : DEFAULT_CONFIG.hangingIndent,
     headingRules: {
       ...DEFAULT_CONFIG.headingRules,
       ...(raw.headingRules || {}),
+      numberTitleGapCm:
+        typeof raw.headingRules?.numberTitleGapCm === 'number' &&
+        Number.isFinite(raw.headingRules.numberTitleGapCm)
+          ? // 0 = mati (mengikuti teks sumber); selain itu minimal 0,5 cm agar
+            // nomor dan judul tidak menempel di pratinjau maupun Word.
+            raw.headingRules.numberTitleGapCm <= 0
+            ? 0
+            : Math.min(5, Math.max(0.5, raw.headingRules.numberTitleGapCm))
+          : DEFAULT_CONFIG.headingRules.numberTitleGapCm,
       h1: { ...DEFAULT_CONFIG.headingRules.h1, ...((raw.headingRules || {}).h1 || {}) },
       h2: { ...DEFAULT_CONFIG.headingRules.h2, ...((raw.headingRules || {}).h2 || {}) },
       h3: { ...DEFAULT_CONFIG.headingRules.h3, ...((raw.headingRules || {}).h3 || {}) }
     },
     pageSetup: { ...DEFAULT_CONFIG.pageSetup, ...(raw.pageSetup || {}) },
     coverLayout: { ...DEFAULT_CONFIG.coverLayout, ...(raw.coverLayout || {}) },
+    tableStyle: {
+      ...DEFAULT_CONFIG.tableStyle,
+      ...(raw.tableStyle || {}),
+      borderWidth:
+        typeof raw.tableStyle?.borderWidth === 'number' && Number.isFinite(raw.tableStyle.borderWidth)
+          ? Math.min(3, Math.max(0, raw.tableStyle.borderWidth))
+          : DEFAULT_CONFIG.tableStyle.borderWidth
+    },
     rules: { ...DEFAULT_CONFIG.rules, ...(raw.rules || {}) }
   };
 }
@@ -187,6 +219,9 @@ export function App() {
     doc.sections[0]?.id ?? null
   );
   const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
+  const [isSectionsOpen, setIsSectionsOpen] = useState(false);
+  const [isFormatOpen, setIsFormatOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
@@ -205,6 +240,18 @@ export function App() {
     return () => {
       if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
     };
+  }, []);
+
+  // Tutup panel geser (layar sempit) dengan tombol Escape.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setIsSectionsOpen(false);
+      setIsFormatOpen(false);
+      setIsMobileNavOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   // Autosave: dokumen & konfigurasi tetap ada setelah refresh.
@@ -231,6 +278,7 @@ export function App() {
   const navigate = (page: NavPage) => {
     setActivePage(page);
     setIsSidebarCollapsed(page === 'editor');
+    setIsMobileNavOpen(false);
   };
 
   const handleProcessFromHome = (text: string, fileName: string, template: DocumentTemplate) => {
@@ -356,6 +404,144 @@ export function App() {
     notify(`${totalReplaced} kata tidak baku berhasil diperbaiki sesuai KBBI!`);
   };
 
+  const handleItalicizeTerm = (term: string) => {
+    // Pengecualian PUEBI: judul asing dalam Daftar Pustaka ditulis tegak,
+    // jadi korektor tidak menyentuh section tersebut.
+    let totalReplaced = 0;
+    const updatedSections = doc.sections.map((section) => {
+      if (isBibliographySection(section)) return section;
+      return {
+        ...section,
+        blocks: section.blocks.map((block) => {
+          const result = italicizeTerm(block.formattedContent, term);
+          totalReplaced += result.totalReplaced;
+          return {
+            ...block,
+            formattedContent: result.text,
+            rawContent: result.text
+          };
+        })
+      };
+    });
+
+    setDoc((previous) => ({
+      ...previous,
+      sections: updatedSections
+    }));
+
+    notify(`${totalReplaced} istilah "${term}" dimiringkan sesuai PUEBI!`);
+  };
+
+  const handleItalicizeCuratedAll = () => {
+    let totalReplaced = 0;
+    const updatedSections = doc.sections.map((section) => {
+      if (isBibliographySection(section)) return section;
+      return {
+        ...section,
+        blocks: section.blocks.map((block) => {
+          let blockText = block.formattedContent;
+          for (const term of FOREIGN_TERMS) {
+            const result = italicizeTerm(blockText, term);
+            totalReplaced += result.totalReplaced;
+            blockText = result.text;
+          }
+          return {
+            ...block,
+            formattedContent: blockText,
+            rawContent: blockText
+          };
+        })
+      };
+    });
+
+    setDoc((previous) => ({
+      ...previous,
+      sections: updatedSections
+    }));
+
+    notify(`${totalReplaced} istilah asing dimiringkan sesuai PUEBI!`);
+  };
+
+  const handleInsertImage = async (file: File, afterBlockId?: string) => {
+    try {
+      const { dataUrl, width, height } = await compressImageFile(file);
+      const stamp = Date.now();
+      const imageId = `blk-img-${stamp}`;
+      const captionId = `blk-cap-${stamp}`;
+
+      setDoc((previous) => {
+        const copy = JSON.parse(JSON.stringify(previous)) as ParsedDocument;
+        const newBlocks = [
+          {
+            id: imageId,
+            type: 'image' as const,
+            rawContent: '',
+            formattedContent: '',
+            meta: { dataUrl, width, height }
+          },
+          {
+            id: captionId,
+            type: 'figure_caption' as const,
+            rawContent: 'Judul gambar',
+            formattedContent: 'Judul gambar',
+            meta: { autoCaption: true }
+          }
+        ];
+
+        // Posisi ala Word: tepat setelah blok yang diklik kanan. Bila blok
+        // tidak ditemukan, jatuh ke akhir section yang sedang dilihat
+        // (fallback BAB terakhir).
+        let target: (typeof copy.sections)[number] | undefined;
+        let insertIndex = -1;
+        if (afterBlockId) {
+          for (const section of copy.sections) {
+            const index = section.blocks.findIndex((block) => block.id === afterBlockId);
+            if (index >= 0) {
+              target = section;
+              insertIndex = index + 1;
+              break;
+            }
+          }
+        }
+        if (!target) {
+          const activeIndex = copy.sections.findIndex((s) => s.id === activeSectionId);
+          target = activeIndex >= 0 ? copy.sections[activeIndex] : undefined;
+          if (!target) target = copy.sections.find((s) => s.type === 'bab');
+          insertIndex = target ? target.blocks.length : -1;
+        }
+        if (!target || insertIndex < 0) return previous;
+
+        target.blocks.splice(insertIndex, 0, ...newBlocks);
+        target.blockCount = target.blocks.length;
+        renumberCaptions(copy);
+        return copy;
+      });
+
+      notify('Gambar disisipkan — ketik judul pada caption di bawah gambar.');
+    } catch {
+      notify('Gagal memuat gambar. Coba file lain.');
+    }
+  };
+
+  const handleDeleteImage = (blockId: string) => {
+    setDoc((previous) => {
+      const copy = JSON.parse(JSON.stringify(previous)) as ParsedDocument;
+      for (const section of copy.sections) {
+        const index = section.blocks.findIndex((block) => block.id === blockId);
+        if (index >= 0) {
+          // Hapus blok image + caption tepat di bawahnya (bila ada).
+          const next = section.blocks[index + 1];
+          const removeCount = next && next.type === 'figure_caption' ? 2 : 1;
+          section.blocks.splice(index, removeCount);
+          section.blockCount = section.blocks.length;
+          break;
+        }
+      }
+      renumberCaptions(copy);
+      return copy;
+    });
+  };
+
   const handleSortBibliography = () => {
     setDoc((previous) => ({
       ...previous,
@@ -467,16 +653,47 @@ export function App() {
         </div>
       )}
 
-      <AppSidebar
-        activePage={activePage}
-        onNavigate={navigate}
-        hasDocument={Boolean(doc)}
-        docTitle={doc.fileName}
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-      />
+      {/* Sidebar navigasi: drawer di layar sempit, inline di md ke atas */}
+      {isMobileNavOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-slate-900/30 md:hidden"
+          onClick={() => setIsMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <div
+        className={`${
+          isMobileNavOpen ? 'flex' : 'hidden'
+        } md:flex fixed md:static inset-y-0 left-0 z-40 md:z-30`}
+      >
+        <AppSidebar
+          activePage={activePage}
+          onNavigate={navigate}
+          hasDocument={Boolean(doc)}
+          docTitle={doc.fileName}
+          isCollapsed={isMobileNavOpen ? false : isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        />
+      </div>
 
       <div className="flex-1 flex flex-col overflow-hidden app-content">
+        {/* Top bar mobile pengganti sidebar yang jadi drawer */}
+        <div className="md:hidden flex items-center gap-2 px-3 py-2 bg-white border-b border-slate-200 no-print">
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileNavOpen(true);
+              setIsSidebarCollapsed(false);
+            }}
+            aria-label="Buka menu navigasi"
+            aria-expanded={isMobileNavOpen}
+            className="p-2 rounded-lg border border-slate-300 text-slate-600 hover:border-teal-400 hover:text-teal-700"
+          >
+            <Menu className="w-4 h-4" aria-hidden />
+          </button>
+          <span className="text-sm font-bold text-slate-800">SkripsiRapi</span>
+          <span className="text-[10px] text-slate-400">Standar Akademik RI</span>
+        </div>
         {activePage === 'beranda' && (
           <HomePage
             onProcessText={handleProcessFromHome}
@@ -503,17 +720,34 @@ export function App() {
               onClearEditor={() => setIsClearModalOpen(true)}
             />
 
-            <div className="flex-1 flex overflow-hidden editor-main">
-              <LeftSidebar
-                doc={doc}
-                activeSectionId={activeSectionId}
-                onSelectSection={(id) => setActiveSectionId(id)}
-                currentPage={currentPage}
-                onSelectPage={(page) => setCurrentPage(page)}
-                sectionPages={pagination.sectionPages}
-                blockPages={pagination.blockPages}
-                totalPages={pagination.totalPages || doc.estimatedPages || 1}
-              />
+            <div className="flex-1 flex overflow-hidden editor-main relative">
+              {/* Panel daftar bagian: drawer di layar sempit, menetap di layar lebar */}
+              {isSectionsOpen && (
+                <div
+                  className="fixed inset-0 z-30 bg-slate-900/30 lg:hidden"
+                  onClick={() => setIsSectionsOpen(false)}
+                  aria-hidden="true"
+                />
+              )}
+              <div
+                className={`${
+                  isSectionsOpen ? 'flex' : 'hidden'
+                } lg:flex fixed lg:static inset-y-0 left-0 z-40 lg:z-auto`}
+              >
+                <LeftSidebar
+                  doc={doc}
+                  activeSectionId={activeSectionId}
+                  onSelectSection={(id) => {
+                    setActiveSectionId(id);
+                    setIsSectionsOpen(false);
+                  }}
+                  currentPage={currentPage}
+                  onSelectPage={(page) => setCurrentPage(page)}
+                  sectionPages={pagination.sectionPages}
+                  blockPages={pagination.blockPages}
+                  totalPages={pagination.totalPages || doc.estimatedPages || 1}
+                />
+              </div>
 
               {viewMode === 'formatted' ? (
                 <A4PaperPreview
@@ -529,6 +763,10 @@ export function App() {
                   onUpdateTitle={handleUpdateTitle}
                   onUpdateSectionTitle={handleUpdateSectionTitle}
                   onPaginationChange={handlePaginationChange}
+                  onInsertImageAt={(file, afterBlockId) =>
+                    void handleInsertImage(file, afterBlockId)
+                  }
+                  onDeleteImage={handleDeleteImage}
                 />
               ) : (
                 <div className="flex-1 p-6 md:p-10 overflow-y-auto bg-slate-50 flex flex-col items-center">
@@ -548,18 +786,55 @@ export function App() {
                 </div>
               )}
 
-              <RightSidebar
-                doc={doc}
-                config={config}
-                onChangeConfig={(newConfig) => setConfig(newConfig)}
-                issues={doc.issues}
-                onApplyFormatting={handleApplyFormatting}
-                onRecheck={handleRecheck}
-                onFixAllKbbi={handleFixAllKbbi}
-                onSortBibliography={handleSortBibliography}
-                onChangeCover={handleChangeCover}
-                onSmartFix={handleSmartFix}
-              />
+              {isFormatOpen && (
+                <div
+                  className="fixed inset-0 z-30 bg-slate-900/30 xl:hidden"
+                  onClick={() => setIsFormatOpen(false)}
+                  aria-hidden="true"
+                />
+              )}
+              <div
+                className={`${
+                  isFormatOpen ? 'flex' : 'hidden'
+                } xl:flex fixed xl:static inset-y-0 right-0 z-40 xl:z-auto`}
+              >
+                <RightSidebar
+                  doc={doc}
+                  config={config}
+                  onChangeConfig={(newConfig) => setConfig(newConfig)}
+                  issues={doc.issues}
+                  onApplyFormatting={handleApplyFormatting}
+                  onRecheck={handleRecheck}
+                  onFixAllKbbi={handleFixAllKbbi}
+                  onItalicizeTerm={handleItalicizeTerm}
+                  onItalicizeCuratedAll={handleItalicizeCuratedAll}
+                  onSortBibliography={handleSortBibliography}
+                  onChangeCover={handleChangeCover}
+                  onSmartFix={handleSmartFix}
+                />
+              </div>
+
+              {/* Tombol pembuka panel untuk layar sempit */}
+              <button
+                type="button"
+                onClick={() => setIsSectionsOpen((open) => !open)}
+                aria-label="Buka daftar bagian dokumen"
+                aria-expanded={isSectionsOpen}
+                className="lg:hidden absolute bottom-3 left-3 z-20 no-print flex items-center space-x-1.5 rounded-full bg-white border border-slate-300 px-3 py-2 text-[11px] font-semibold text-slate-700 shadow-md hover:border-teal-400 hover:text-teal-700"
+              >
+                <PanelLeft className="w-3.5 h-3.5" aria-hidden />
+                <span>Bagian</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFormatOpen((open) => !open)}
+                aria-label="Buka panel format & pengaturan"
+                aria-expanded={isFormatOpen}
+                className="xl:hidden absolute bottom-3 right-3 z-20 no-print flex items-center space-x-1.5 rounded-full bg-teal-600 px-3 py-2 text-[11px] font-semibold text-white shadow-md hover:bg-teal-700"
+              >
+                <Sliders className="w-3.5 h-3.5" aria-hidden />
+                <span>Format</span>
+              </button>
             </div>
           </div>
         )}

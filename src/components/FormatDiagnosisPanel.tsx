@@ -70,7 +70,7 @@ export const FormatDiagnosisPanel: React.FC<FormatDiagnosisPanelProps> = ({
   const templateMatches = config.template === diagnosis.detectedType;
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div className="space-y-4">
       {/* Ringkasan tipe dokumen & skor */}
       <div className="rounded-xl bg-gradient-to-br from-teal-600 to-teal-700 text-white p-4 shadow-sm space-y-3">
         <div className="flex items-start justify-between gap-3">

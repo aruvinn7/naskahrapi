@@ -29,6 +29,8 @@ export interface HeadingRules {
   babTitleStyle: BabTitleStyle;
   /** Gaya nomor sub-bab: "1.1" numerik atau "I.1" romawi. */
   h2Numbering: 'numeric' | 'roman';
+  /** Posisi judul sub-bab dari margin kiri (cm); 0 = mengikuti spasi teks sumber. */
+  numberTitleGapCm: number;
 }
 
 export type PaperSize = 'a4' | 'f4' | 'letter';
@@ -49,6 +51,15 @@ export interface CoverLayout {
   variant: CoverLayoutVariant;
 }
 
+export interface TableStyle {
+  /** Ketebalan garis tabel dalam pt (0.5 = tipis, 1 = sedang, 1.5 = tebal). */
+  borderWidth: number;
+  /** Baris judul kolom dicetak tebal. */
+  headerBold: boolean;
+  /** Perataan isi sel tabel. */
+  cellAlignment: 'left' | 'center';
+}
+
 export interface DocumentConfig {
   template: DocumentTemplate;
   margin: {
@@ -67,6 +78,9 @@ export interface DocumentConfig {
   };
   lineSpacing: number; // 1.5 or 2.0
   firstLineIndent: number; // in cm (1.0 or 1.27)
+  /** Indentasi menggantung untuk entri Daftar Pustaka (cm). */
+  hangingIndent: number;
+  tableStyle: TableStyle;
   alignment: 'justify' | 'left' | 'center';
   headingRules: HeadingRules;
   pageSetup: PageSetup;
@@ -119,6 +133,7 @@ export interface CoverData {
 export type BlockType = 
   | 'cover'
   | 'kata_pengantar'
+  | 'signature'   // penutup surat: "Jakarta, 19 November 2026" + "Tim Penulis"
   | 'daftar_isi'
   | 'daftar_tabel'
   | 'daftar_gambar'
@@ -132,6 +147,7 @@ export type BlockType =
   | 'table'
   | 'table_caption'
   | 'figure_caption'
+  | 'image'
   | 'daftar_tabel_item'
   | 'daftar_gambar_item'
   | 'daftar_pustaka_item'

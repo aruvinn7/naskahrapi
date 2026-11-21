@@ -3,7 +3,8 @@ import {
   ChapterNumberingFormat,
   HeadingRules,
   PageSetup,
-  PaperSize
+  PaperSize,
+  TableStyle
 } from '../types/document';
 
 /** Angka Arab → Romawi (1–3999). */
@@ -166,13 +167,25 @@ export function formatSubHeadingNumber(text: string, mode: 'numeric' | 'roman'):
   return `${toRoman(parseInt(match[1], 10))}.${match[2]}${match[3]}`;
 }
 
+/**
+ * Memecah teks sub-bab bernomor ("2.6 Dampak…", "2.6.1 …", "II.3 …") menjadi
+ * nomor dan judulnya. Mengembalikan null bila teks tidak diawali nomor atau
+ * tidak punya judul — dipakai pratinjau & ekspor DOCX untuk pengaturan
+ * posisi judul (numberTitleGapCm) agar keduanya identik.
+ */
+export function splitHeadingNumberTitle(text: string): { number: string; title: string } | null {
+  const match = text.trim().match(/^(\d+(?:\.\d+)*|[IVXLCDM]+\.\d+)\s+(.+)$/);
+  return match ? { number: match[1], title: match[2].trim() } : null;
+}
+
 export const DEFAULT_HEADING_RULES: HeadingRules = {
   h1: { bold: true, italic: false, allCaps: true, alignment: 'center', spaceBefore: 0, spaceAfter: 6 },
   h2: { bold: true, italic: false, allCaps: false, alignment: 'left', spaceBefore: 12, spaceAfter: 6 },
   h3: { bold: true, italic: true, allCaps: false, alignment: 'left', spaceBefore: 10, spaceAfter: 4 },
   numberingFormat: 'bab-roman',
   babTitleStyle: 'separate',
-  h2Numbering: 'numeric'
+  h2Numbering: 'numeric',
+  numberTitleGapCm: 0
 };
 
 export const DEFAULT_PAGE_SETUP: PageSetup = {
@@ -185,3 +198,9 @@ export const DEFAULT_PAGE_SETUP: PageSetup = {
 };
 
 export const DEFAULT_COVER_LAYOUT = { variant: 'klasik' as const };
+
+export const DEFAULT_TABLE_STYLE: TableStyle = {
+  borderWidth: 1,
+  headerBold: true,
+  cellAlignment: 'left'
+};

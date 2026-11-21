@@ -9,7 +9,7 @@ export const TEMPLATE_PRESETS: Record<Exclude<DocumentTemplate, 'kustom'>, Templ
   makalah: {
     margin: { top: 3, bottom: 3, left: 4, right: 3 },
     lineSpacing: 1.5,
-    firstLineIndent: 1.0,
+    firstLineIndent: 0.75,
     fontSize: { title: 14, subTitle: 12, body: 12, table: 10, caption: 10 }
   },
   skripsi: {

@@ -23,7 +23,7 @@ import {
 import { parseInlineSegments, splitChapterHeading } from '../utils/inlineFormat';
 import { LIST_INDENT_CM, buildListLabels, stripListMarker } from '../utils/listNumbering';
 import { MEMBER_COLUMN_GAP_MM, buildCoverLines, coverLogoBox, CoverLine } from '../utils/cover';
-import { formatChapterHeading, formatSubHeadingNumber, paperDimensions } from '../utils/formatEngine';
+import { formatChapterHeading, formatSubHeadingNumber, paperDimensions, splitHeadingNumberTitle } from '../utils/formatEngine';
 
 interface A4PaperPreviewProps {
   doc: ParsedDocument;
@@ -38,6 +38,8 @@ interface A4PaperPreviewProps {
   onUpdateTitle: (newTitle: string) => void;
   onUpdateSectionTitle: (sectionId: string, newTitle: string) => void;
   onPaginationChange: (info: PaginationInfo) => void;
+  onDeleteImage?: (blockId: string) => void;
+  onInsertImageAt?: (file: File, afterBlockId?: string) => void;
 }
 
 const PX_PER_MM = 96 / 25.4;
@@ -54,7 +56,9 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
   onUpdateBlockContent,
   onUpdateTitle,
   onUpdateSectionTitle,
-  onPaginationChange
+  onPaginationChange,
+  onDeleteImage,
+  onInsertImageAt
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -62,6 +66,12 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
   const suppressSpyUntil = useRef(0);
   const [isEditMode, setIsEditMode] = useState(false);
   const [heights, setHeights] = useState<Record<string, number>>({});
+  const [imageTick, setImageTick] = useState(0);
+  const [contextMenu, setContextMenu] = useState<
+    { x: number; y: number; blockId: string | null; isImage: boolean } | null
+  >(null);
+  const contextFileRef = useRef<HTMLInputElement>(null);
+  const contextAfterBlockId = useRef<string | undefined>(undefined);
   const [pageInput, setPageInput] = useState('1');
   const pageInputRef = useRef<HTMLInputElement>(null);
 
@@ -146,7 +156,7 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
 
     measure();
     document.fonts?.ready.then(measure).catch(() => undefined);
-  }, [itemSignature, effective]);
+  }, [itemSignature, effective, imageTick]);
 
   const pages = useMemo(
     () => paginate(items, heights, capacityPx),
@@ -186,9 +196,39 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
 
   const totalPages = meta.totalPages;
 
-  const handleZoomIn = () => setZoom((previous) => Math.min(150, previous + 5));
-  const handleZoomOut = () => setZoom((previous) => Math.max(50, previous - 5));
-  const handleResetZoom = () => setZoom(80);
+  // Fit-to-width: di layar sempit zoom efektif dibatasi agar halaman A4
+  // selalu pas lebar kontainer (tidak terpotong). Manual (± / preset)
+  // mematikan auto-fit; tombol Pas Layar menyalakannya lagi.
+  const [fitPercent, setFitPercent] = useState(100);
+  const [autoFit, setAutoFit] = useState(true);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const updateFit = () => {
+      const pageWidthPx = paper.widthMm * PX_PER_MM;
+      const available = container.clientWidth - 32; // padding p-4 (16px × 2)
+      if (available <= 0 || pageWidthPx <= 0) return;
+      const percent = Math.round((available / pageWidthPx) * 100);
+      setFitPercent(Math.max(25, Math.min(150, percent)));
+    };
+    updateFit();
+    const observer = new ResizeObserver(updateFit);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [paper.widthMm]);
+
+  const effectiveZoom = autoFit ? Math.min(zoom, fitPercent) : zoom;
+
+  const handleZoomIn = () => {
+    setAutoFit(false);
+    setZoom((previous) => Math.min(150, previous + 5));
+  };
+  const handleZoomOut = () => {
+    setAutoFit(false);
+    setZoom((previous) => Math.max(50, previous - 5));
+  };
+  const handleResetZoom = () => setAutoFit(true);
 
   // Navigasi halaman eksplisit: gulir kontainer sendiri (bukan scrollIntoView,
   // yang salah hitung saat pratinjau di-zoom) lalu tahan scroll-spy sebentar.
@@ -536,14 +576,51 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
     const updateBlock = (event: React.FocusEvent<HTMLElement>) =>
       onUpdateBlockContent(blockId, event.currentTarget.textContent || '');
 
+    if (block.type === 'image') {
+      const dataUrl = (block.meta?.dataUrl as string) || '';
+      return (
+        <div
+          key={item.id}
+          data-flow-item={item.id}
+          style={{ paddingBottom: '0.5em', position: 'relative' }}
+        >
+          {canEdit && onDeleteImage && (
+            <button
+              type="button"
+              onClick={() => onDeleteImage(item.block?.id ?? item.id.replace(/^block-/, ''))}
+              title="Hapus gambar"
+              className="absolute top-1 right-1 z-10 rounded-md bg-white/90 border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:text-red-600 hover:border-red-300 no-print"
+            >
+              ✕ Hapus
+            </button>
+          )}
+          <img
+            src={dataUrl}
+            alt=""
+            style={{ maxWidth: '100%', display: 'block', margin: '0 auto' }}
+            onLoad={() => setImageTick((t) => t + 1)}
+          />
+        </div>
+      );
+    }
+
     if (block.type === 'table_caption' || block.type === 'figure_caption') {
-      const label = (block.meta?.label as string) ?? '';
-      const description = (block.meta?.description as string) ?? '';
+      // Label diambil dari formattedContent agar nomor hasil renumber
+      // ("Gambar 2.1 …") selalu tampil terbaru.
+      const match = block.formattedContent.match(
+        /^((?:Gambar|Tabel)\s+[\d.]+)\s*[:.]?\s*(.*)$/i
+      );
+      const label = match?.[1] ?? (block.meta?.label as string) ?? '';
+      const description = match?.[2] ?? (block.meta?.description as string) ?? '';
 
       return (
         <div
           key={item.id}
           data-flow-item={item.id}
+          contentEditable={canEdit}
+          suppressContentEditableWarning
+          onBlur={updateBlock}
+          className={canEdit ? editableClass : undefined}
           style={{
             fontSize: `${effective.fontSize.table}pt`,
             textAlign: 'center',
@@ -560,11 +637,13 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
     if (block.type === 'table') {
       const header = (block.meta?.header ?? []) as string[];
       const rows = (block.meta?.rows ?? []) as string[][];
+      const tableStyle = effective.tableStyle;
+      const borderWidth = Math.max(0.25, tableStyle.borderWidth);
       const cellStyle: React.CSSProperties = {
-        border: '1px solid #64748b',
+        border: `${borderWidth}pt solid #64748b`,
         padding: '2px 4px',
         verticalAlign: 'top',
-        textAlign: 'left'
+        textAlign: tableStyle.cellAlignment
       };
 
       return (
@@ -582,7 +661,11 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
                 {header.map((cell, index) => (
                   <th
                     key={index}
-                    style={{ ...cellStyle, fontWeight: 700, textAlign: 'center' }}
+                    style={{
+                      ...cellStyle,
+                      fontWeight: tableStyle.headerBold ? 700 : 400,
+                      textAlign: tableStyle.cellAlignment
+                    }}
                   >
                     {renderInline(cell)}
                   </th>
@@ -601,6 +684,27 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
               ))}
             </tbody>
           </table>
+        </div>
+      );
+    }
+
+    if (block.type === 'signature') {
+      // Penutup KATA PENGANTAR: kota & tanggal, lalu nama penulis, rata kanan.
+      const meta = (block.meta ?? {}) as { place?: string; date?: string; signer?: string };
+      const dateLine = [meta.place, meta.date].filter(Boolean).join(', ') || item.text;
+
+      return (
+        <div
+          key={item.id}
+          data-flow-item={item.id}
+          style={{ marginTop: '2em', textAlign: 'right' }}
+        >
+          <p style={{ textIndent: 0, margin: 0, textAlign: 'right' }}>{renderInline(dateLine)}</p>
+          {meta.signer ? (
+            <p style={{ textIndent: 0, marginTop: '2.5em', textAlign: 'right' }}>
+              {renderInline(meta.signer)}
+            </p>
+          ) : null}
         </div>
       );
     }
@@ -661,6 +765,10 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
     if (block.type === 'heading_2') {
       const hr = effective.headingRules;
       const text = formatSubHeadingNumber(item.text, hr.h2Numbering);
+      // Posisi judul (cm): nomor dalam kotak selebar posisi, judul mulai rata
+      // di posisi yang sama — meniru tab stop pada ekspor DOCX.
+      const gap = hr.numberTitleGapCm;
+      const parts = gap > 0 ? splitHeadingNumberTitle(text) : null;
       return (
         <div key={item.id} data-flow-item={item.id}>
           <h3
@@ -678,7 +786,19 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
               paddingBottom: `${hr.h2.spaceAfter}pt`
             }}
           >
-            {renderInline(text)}
+            {parts ? (
+              <>
+                <span style={{ display: 'inline-block', minWidth: `${gap}cm` }}>
+                  {renderInline(parts.number)}
+                  {/* nbsp: nomor lebih lebar dari posisi tetap tidak pernah
+                      menempel dengan judul (Word maju ke stop berikutnya). */}
+                  {'\u00A0'}
+                </span>
+                {renderInline(parts.title)}
+              </>
+            ) : (
+              renderInline(text)
+            )}
           </h3>
         </div>
       );
@@ -686,6 +806,8 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
 
     if (block.type === 'heading_3') {
       const hr = effective.headingRules;
+      const gap = hr.numberTitleGapCm;
+      const parts = gap > 0 ? splitHeadingNumberTitle(item.text) : null;
       return (
         <div key={item.id} data-flow-item={item.id}>
           <h4
@@ -703,7 +825,19 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
               paddingBottom: `${hr.h3.spaceAfter}pt`
             }}
           >
-            {renderInline(item.text)}
+            {parts ? (
+              <>
+                <span style={{ display: 'inline-block', minWidth: `${gap}cm` }}>
+                  {renderInline(parts.number)}
+                  {/* nbsp: nomor lebih lebar dari posisi tetap tidak pernah
+                      menempel dengan judul (Word maju ke stop berikutnya). */}
+                  {'\u00A0'}
+                </span>
+                {renderInline(parts.title)}
+              </>
+            ) : (
+              renderInline(item.text)
+            )}
           </h4>
         </div>
       );
@@ -828,7 +962,7 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
     <div className="flex-1 flex flex-col h-full bg-slate-200/80 overflow-hidden relative select-text preview-root">
       <style>{printPaperStyle}</style>
       {/* Kontrol atas */}
-      <div className="h-12 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-4 md:px-6 flex items-center justify-between text-xs text-slate-600 shrink-0 z-20 shadow-2xs no-print">
+      <div className="min-h-12 py-1 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-3 md:px-6 flex flex-wrap items-center justify-between gap-y-1 text-xs text-slate-600 shrink-0 z-20 shadow-2xs no-print">
         <div className="flex items-center space-x-2">
           <Button
             variant="ghost"
@@ -915,9 +1049,12 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
             {[75, 80, 100].map((preset) => (
               <button
                 key={preset}
-                onClick={() => setZoom(preset)}
+                onClick={() => {
+                  setAutoFit(false);
+                  setZoom(preset);
+                }}
                 className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                  zoom === preset
+                  !autoFit && zoom === preset
                     ? 'bg-white font-bold text-teal-700 shadow-2xs'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
@@ -931,13 +1068,20 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
             <Plus className="w-3.5 h-3.5" />
           </Button>
 
+          <span
+            className="text-[10px] font-mono text-slate-500 w-9 text-center"
+            title="Zoom efektif saat ini"
+          >
+            {Math.round(effectiveZoom)}%
+          </span>
+
           <div className="h-4 w-px bg-slate-200 mx-1" />
 
           <Button
             variant="ghost"
             size="icon-sm"
             onClick={handleResetZoom}
-            title="Reset Zoom ke 80% (Pas Layar)"
+            title={`Pas Layar (${Math.round(fitPercent)}%)`}
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>
@@ -987,15 +1131,29 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
       {/* Kanvas dokumen */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col items-center scroll-smooth preview-scroll"
+        className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 flex flex-col items-center scroll-smooth preview-scroll"
         style={{ scrollBehavior: 'smooth' }}
+        onContextMenu={(event) => {
+          // Klik kanan ala Word: di mode edit, menu konteks ganti dengan
+          // "Sisipkan Gambar di sini" (di blok yang diklik kanan).
+          if (!isEditMode || !onInsertImageAt) return;
+          const target = event.target as HTMLElement;
+          const flowEl = target.closest('[data-flow-item]');
+          if (!flowEl) return;
+          event.preventDefault();
+          setContextMenu({
+            x: event.clientX,
+            y: event.clientY,
+            blockId: (flowEl.getAttribute('data-flow-item') ?? '').replace(/^block-/, ''),
+            isImage: (flowEl.querySelector(':scope > img') ?? null) !== null
+          });
+        }}
       >
+        {/* zoom (bukan transform scale): layout ikut menyusut, halaman tidak
+            terpotong di layar sempit, dan offset klik/scroll tetap akurat. */}
         <div
-          className="flex flex-col items-center space-y-10 pb-24 transition-transform duration-150 origin-top preview-scale"
-          style={{
-            transform: `scale(${zoom / 100})`,
-            transformOrigin: 'top center'
-          }}
+          className="flex flex-col items-center space-y-10 pb-24 preview-scale"
+          style={{ zoom: effectiveZoom / 100 }}
         >
           {pages.map((pageItems, pageIndex) => {
             const pageLabel = meta.labels[pageIndex] ?? { phase: 'body' as const, label: '' };
@@ -1059,6 +1217,64 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
           })}
         </div>
       </div>
+
+      {/* Menu konteks klik kanan (mode edit) — ala Word: sisip gambar di
+          blok yang diklik kanan, atau hapus gambar. */}
+      {contextMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40 no-print"
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              setContextMenu(null);
+            }}
+          />
+          <div
+            className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[200px] no-print"
+            style={{
+              left: Math.min(contextMenu.x, window.innerWidth - 220),
+              top: Math.min(contextMenu.y, window.innerHeight - 110)
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                contextAfterBlockId.current = contextMenu.blockId ?? undefined;
+                contextFileRef.current?.click();
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-teal-50 hover:text-teal-700 flex items-center space-x-2"
+            >
+              <span>🖼 Sisipkan Gambar di sini</span>
+            </button>
+            {contextMenu.isImage && onDeleteImage && (
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteImage(contextMenu.blockId ?? '');
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center space-x-2"
+              >
+                <span>🗑 Hapus gambar</span>
+              </button>
+            )}
+          </div>
+        </>
+      )}
+      <input
+        ref={contextFileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden no-print"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file && onInsertImageAt) onInsertImageAt(file, contextAfterBlockId.current);
+          event.currentTarget.value = '';
+          contextAfterBlockId.current = undefined;
+        }}
+      />
     </div>
   );
 };

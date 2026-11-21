@@ -43,7 +43,7 @@ import {
   coverLogoBox,
   CoverLine
 } from './cover';
-import { formatChapterHeading, formatSubHeadingNumber, paperDimensions } from './formatEngine';
+import { formatChapterHeading, formatSubHeadingNumber, paperDimensions, splitHeadingNumberTitle } from './formatEngine';
 import {
   findCoverHeadingBlock,
   findCoverTitleBlock,
@@ -90,6 +90,8 @@ interface Typography {
   subTitleSize: number;
   bodySize: number;
   captionSize: number;
+  tableSize: number;
+  tableStyle: EffectiveConfig['tableStyle'];
   firstLineIndent: number;
   hangingIndent: number;
   alignment: (typeof AlignmentType)[keyof typeof AlignmentType];
@@ -97,9 +99,16 @@ interface Typography {
   heading: EffectiveConfig['headingRules'];
   pageSetup: EffectiveConfig['pageSetup'];
   coverLayout: EffectiveConfig['coverLayout'];
+  /** Lebar konten halaman dalam px (96 dpi) — batas lebar gambar isi. */
+  contentWidthPx: number;
 }
 
 function buildTypography(effective: EffectiveConfig): Typography {
+  const mm = paperDimensions(
+    effective.pageSetup.paperSize,
+    effective.pageSetup.orientation === 'landscape'
+  );
+  const contentWidthMm = mm.widthMm - (effective.margin.left + effective.margin.right) * 10;
   return {
     font: effective.fontFamily,
     line: Math.round(effective.lineSpacing * 240),
@@ -107,13 +116,16 @@ function buildTypography(effective: EffectiveConfig): Typography {
     subTitleSize: ptToHalfPoints(effective.fontSize.subTitle),
     bodySize: ptToHalfPoints(effective.fontSize.body),
     captionSize: ptToHalfPoints(effective.fontSize.caption),
+    tableSize: ptToHalfPoints(effective.fontSize.table),
+    tableStyle: effective.tableStyle,
     firstLineIndent: cmToTwip(effective.firstLineIndent),
     hangingIndent: cmToTwip(effective.hangingIndent),
     alignment: bodyAlignment(effective),
     numbering: effective.numbering,
     heading: effective.headingRules,
     pageSetup: effective.pageSetup,
-    coverLayout: effective.coverLayout
+    coverLayout: effective.coverLayout,
+    contentWidthPx: Math.round(contentWidthMm * (96 / 25.4))
   };
 }
 
@@ -141,6 +153,7 @@ function headingParagraph(
   });
 
   let children: ParagraphChild[];
+  let headingParts: { number: string; title: string } | null = null;
   if (level === 1) {
     const rendered = formatChapterHeading(text, hr.numberingFormat, hr.babTitleStyle);
     if (hr.babTitleStyle === 'joined' || !rendered.label) {
@@ -152,8 +165,23 @@ function headingParagraph(
       ];
     }
   } else {
-    children = [new TextRun(runOptions(level === 2 ? formatSubHeadingNumber(text, hr.h2Numbering) : text))];
+    const display = level === 2 ? formatSubHeadingNumber(text, hr.h2Numbering) : text;
+    // Posisi judul (cm): run nomor + tab + run judul, dengan tab stop kiri di
+    // posisi tersebut — judul selalu mulai rata seperti di pratinjau.
+    headingParts = hr.numberTitleGapCm > 0 ? splitHeadingNumberTitle(display) : null;
+    children = headingParts
+      ? [
+          new TextRun(runOptions(headingParts.number)),
+          new TextRun({ children: [new Tab()], font: typography.font, size }),
+          new TextRun(runOptions(headingParts.title))
+        ]
+      : [new TextRun(runOptions(display))];
   }
+
+  const tabStops =
+    headingParts && hr.numberTitleGapCm > 0
+      ? [{ type: TabStopType.LEFT, position: cmToTwip(hr.numberTitleGapCm) }]
+      : undefined;
 
   return new Paragraph({
     heading:
@@ -172,6 +200,7 @@ function headingParagraph(
       after: Math.round(style.spaceAfter * 20),
       line: typography.line
     },
+    tabStops,
     children
   });
 }
@@ -249,6 +278,48 @@ function blockParagraph(
     });
   }
 
+  if (block.type === 'image') {
+    const meta = (block.meta ?? {}) as { dataUrl?: string; width?: number; height?: number };
+    const naturalWidth = meta.width ?? typography.contentWidthPx;
+    const naturalHeight = meta.height ?? Math.round(naturalWidth * 0.75);
+    const scale = Math.min(1, typography.contentWidthPx / Math.max(1, naturalWidth));
+    const width = Math.max(1, Math.round(naturalWidth * scale));
+    const height = Math.max(1, Math.round(naturalHeight * scale));
+    const image = dataUrlToImageRun(meta.dataUrl ?? '', width, height);
+    if (!image) {
+      return new Paragraph({ children: [] });
+    }
+    return new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 120, after: 120, line: typography.line },
+      children: [image]
+    });
+  }
+
+  if (block.type === 'signature') {
+    const meta = (block.meta ?? {}) as { place?: string; date?: string; signer?: string };
+    const dateLine = [meta.place, meta.date].filter(Boolean).join(', ') || text;
+    const signer = typeof meta.signer === 'string' ? meta.signer : '';
+
+    return new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      spacing: { before: 360, after: 0, line: typography.line },
+      children: [
+        ...inlineRuns(dateLine, typography.font, typography.bodySize),
+        ...(signer
+          ? [
+              new TextRun({
+                text: signer,
+                break: 3,
+                font: typography.font,
+                size: typography.bodySize
+              })
+            ]
+          : [])
+      ]
+    });
+  }
+
   if (block.type === 'daftar_pustaka_item') {
     return new Paragraph({
       alignment: AlignmentType.LEFT,
@@ -311,10 +382,10 @@ function coverParagraphs(section: DocumentSection, typography: Typography): Para
   });
 }
 
-function dataUrlToImageRun(cover: CoverData): ImageRun | null {
-  if (!cover.logo) return null;
+function dataUrlToImageRun(dataUrl: string, width: number, height: number): ImageRun | null {
+  if (!dataUrl) return null;
 
-  const match = cover.logo.match(/^data:image\/(png|jpe?g);base64,([\s\S]+)$/i);
+  const match = dataUrl.match(/^data:image\/(png|jpe?g);base64,([\s\S]+)$/i);
   if (!match) return null;
 
   const type = match[1].toLowerCase() === 'png' ? 'png' : 'jpg';
@@ -329,8 +400,6 @@ function dataUrlToImageRun(cover: CoverData): ImageRun | null {
   } catch {
     return null;
   }
-
-  const { width, height } = coverLogoBox(cover);
 
   return new ImageRun({ type, data: bytes, transformation: { width, height } });
 }
@@ -411,7 +480,8 @@ function structuredCoverParagraphs(cover: CoverData, typography: Typography): Fi
     const before = Math.round(line.spaceBefore * linePt * 20);
 
     if (line.kind === 'logo') {
-      const image = dataUrlToImageRun(cover);
+      const box = coverLogoBox(cover);
+      const image = dataUrlToImageRun(cover.logo ?? '', box.width, box.height);
       if (!image) continue;
 
       children.push(
@@ -441,11 +511,18 @@ function structuredCoverParagraphs(cover: CoverData, typography: Typography): Fi
   return children;
 }
 
-const TABLE_CELL_BORDER = { style: BorderStyle.SINGLE, size: 4, color: '64748B' };
+function tableBorder(typography: Typography) {
+  // docx memakai satuan 1/8 pt untuk ketebalan garis.
+  const size = Math.max(2, Math.round(typography.tableStyle.borderWidth * 8));
+  return { style: BorderStyle.SINGLE, size, color: '64748B' };
+}
 
 function tableBlock(block: DocumentBlock, typography: Typography): Table {
   const header = ((block.meta?.header ?? []) as string[]).filter(Boolean);
   const rows = ((block.meta?.rows ?? []) as string[][]).filter((row) => row.some(Boolean));
+  const border = tableBorder(typography);
+  const cellAlignment =
+    typography.tableStyle.cellAlignment === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT;
 
   const tableRow = (cells: string[], bold: boolean) =>
     new TableRow({
@@ -456,8 +533,11 @@ function tableBlock(block: DocumentBlock, typography: Typography): Table {
             margins: { top: 40, bottom: 40, left: 80, right: 80 },
             children: [
               new Paragraph({
+                alignment: cellAlignment,
                 spacing: { line: 240, before: 0, after: 0 },
-                children: inlineRuns(cell, typography.font, typography.captionSize, { bold })
+                children: inlineRuns(cell, typography.font, typography.tableSize, {
+                  bold: bold && typography.tableStyle.headerBold
+                })
               })
             ]
           })
@@ -467,12 +547,12 @@ function tableBlock(block: DocumentBlock, typography: Typography): Table {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: {
-      top: TABLE_CELL_BORDER,
-      bottom: TABLE_CELL_BORDER,
-      left: TABLE_CELL_BORDER,
-      right: TABLE_CELL_BORDER,
-      insideHorizontal: TABLE_CELL_BORDER,
-      insideVertical: TABLE_CELL_BORDER
+      top: border,
+      bottom: border,
+      left: border,
+      right: border,
+      insideHorizontal: border,
+      insideVertical: border
     },
     rows: [
       ...(header.length > 0 ? [tableRow(header, true)] : []),
@@ -485,8 +565,15 @@ const captionBookmarkId = (blockId: string) => `cap_${blockId.replace(/[^A-Za-z0
 
 /** Caption tabel/gambar: label tebal, keterangan biasa, 10 pt. */
 function captionParagraph(block: DocumentBlock, typography: Typography): Paragraph {
-  const label = (block.meta?.label as string) ?? '';
-  const description = (block.meta?.description as string) ?? '';
+  // Label/diambil dari formattedContent bila meta kosong agar nomor hasil
+  // renumberCaptions ("Gambar 2.1 …") selalu tampil terbaru.
+  const match = block.formattedContent.match(
+    /^((?:Gambar|Tabel)\s+[\d.]+)\s*[:.]?\s*(.*)$/i
+  );
+  const label =
+    (block.meta?.label as string) ?? (match?.[1] ?? '');
+  const description =
+    (block.meta?.description as string) ?? (match?.[2] ?? '');
   const runs: ParagraphChild[] = [];
 
   if (label) {
@@ -554,7 +641,8 @@ function sectionBodyParagraphs(section: DocumentSection, typography: Typography)
   const listLabels = buildListLabels(section.blocks);
 
   for (const block of blocksWithoutDuplicateTitle(section)) {
-    if (!block.formattedContent.trim()) continue;
+    // Blok image punya formattedContent kosong — jangan ter-skip.
+    if (!block.formattedContent.trim() && block.type !== 'image') continue;
 
     if (block.type === 'table_caption' || block.type === 'figure_caption') {
       children.push(captionParagraph(block, typography));

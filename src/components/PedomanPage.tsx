@@ -84,7 +84,7 @@ export const PedomanPage: React.FC<PedomanPageProps> = ({ onNavigate }) => {
             <div className="space-y-2 text-xs text-slate-600 leading-relaxed">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
                 <div>• <strong>Perataan Teks</strong>: Rata Kanan-Kiri (<strong>Justify</strong>).</div>
-                <div>• <strong>Indentasi Baris Pertama</strong>: Baris pertama setiap paragraf menjorok ke dalam sejauh <strong>1 cm</strong> (atau 1,27 cm / 0.5 inci).</div>
+                <div>• <strong>Indentasi Baris Pertama</strong>: Baris pertama setiap paragraf menjorok ke dalam sejauh <strong>0,75 cm</strong> (atau 1 cm / 1,27 cm).</div>
                 <div>• Tidak perlu memberikan jarak spasi kosong (Enter ganda) antar paragraf jika baris pertama sudah diberi indentasi.</div>
               </div>
             </div>

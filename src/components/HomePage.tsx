@@ -392,7 +392,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               Standar Kampus Indonesia
             </h3>
             <p className="text-[11px] text-slate-500 leading-snug">
-              A4, margin 4-3-3-3 cm (atau 4-4-3-3), Times New Roman 12 pt, spasi 1.5/2.0, rata kanan-kiri, indentasi 1 cm.
+              A4, margin 4-3-3-3 cm (atau 4-4-3-3), Times New Roman 12 pt, spasi 1.5/2.0, rata kanan-kiri, indentasi 0,75 cm.
             </p>
           </div>
 

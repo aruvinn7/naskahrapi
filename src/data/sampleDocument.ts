@@ -66,6 +66,8 @@ Penggunaan air dalam data center dibagi menjadi dua kategori utama:
 1. Konsumsi On-site (Langsung): Air dipompa langsung ke menara pendingin data center untuk menyerap panas server melalui proses penguapan termal.
 2. Konsumsi Off-site (Tidak Langsung): Air yang digunakan oleh pembangkit listrik tenaga uap, batu bara, atau nuklir di luar lokasi data center untuk memproduksi pasokan listrik yang dialirkan ke data center tersebut.
 
+Gambar 1. Skema aliran air pendingin evaporatif pada pusat data hiperskala
+
 2.4 Faktor-Faktor yang Memengaruhi Konsumsi Air AI
 Beberapa faktor kritis yang memengaruhi tingkat konsumsi air meliputi:
 - Skala dan Kompleksitas Model: Model dengan ratusan miliar parameter membutuhkan miliaran FLOPS komputasi yang berbanding lurus dengan pelepasan energi termal.
@@ -75,6 +77,14 @@ Beberapa faktor kritis yang memengaruhi tingkat konsumsi air meliputi:
 2.5 Estimasi Konsumsi Air dalam Penggunaan AI
 Studi empiris dari para peneliti University of California Riverside menunjukkan bahwa pelatihan model GPT-3 di fasilitas canggih diperkirakan mengonsumsi sekitar 700.000 liter air tawar bersih. Untuk inferensi harian, setiap percakapan dengan sekitar 20 hingga 50 interaksi pertanyaan diperkirakan meminum setara satu botol air mineral ukuran 500 ml.
 
+Tabel 1. Estimasi Konsumsi Air pada Penggunaan AI
+
+| Tahap Penggunaan | Volume Air | Keterangan |
+| --- | --- | --- |
+| Pelatihan model GPT-3 | 700.000 liter | Sekali pelatihan penuh di fasilitas canggih |
+| Inferensi 20–50 pertanyaan | 0,5 liter | Setara satu botol air mineral 500 ml |
+| Pendinginan harian pusat data 100 MW | 1.200.000 liter | Rata-rata fasilitas hiperskala |
+
 2.6 Dampak Lingkungan dari Konsumsi Air AI
 Eksploitasi sumber air lokal oleh data center berskala hiperskala menimbulkan ketegangan ekologis dengan masyarakat setempat, khususnya di wilayah yang mengalami krisis kekeringan musiman. Pengambilan air tanah secara masif dapat menurunkan permukaan air sumur warga dan mengganggu sektor pertanian lokal.
 
@@ -83,6 +93,8 @@ Berbagai pendekatan inovatif mulai diimplementasikan untuk memitigasi krisis air
 1. Transisi ke Pendinginan Imersi Cairan (Liquid Immersion Cooling): Merendam komponen server dalam cairan dielektrik non-konduktif yang memiliki konduktivitas termal tinggi tanpa menguapkan air.
 2. Pemanfaatan Air Daur Ulang: Mengganti air tawar minum dengan air olahan limbah kota atau air laut yang telah didesalinasi.
 3. Penjadwalan Beban Kerja Sadar Iklim: Mengalihkan komputasi berat ke lokasi data center yang sedang mengalami waktu malam hari atau suhu dingin.
+
+Gambar 2. Ilustrasi sistem pendinginan imersi cairan sebagai alternatif hemat air
 
 2.8 Peran Pengguna dalam Mewujudkan AI yang Berkelanjutan
 Pengguna akhir dan korporasi didorong untuk mempraktikkan "prompt hygiene" dengan mengajukan instruksi yang ringkas, efektif, dan tidak memicu pengulangan inferensi berulang yang sia-sia, serta memilih penyedia layanan awan yang memiliki sertifikasi emisi nol dan netralitas air.

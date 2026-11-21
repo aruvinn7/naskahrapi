@@ -12,12 +12,14 @@ describe('integrasi penuh: dokumen Meta hasil render Pandoc', () => {
   const allBlocks = doc.sections.flatMap((s) => s.blocks);
 
   it('urutan section lengkap dengan CATATAN PENYUSUNAN di akhir', () => {
-    // "daftar_tabel" disisipkan otomatis oleh parser karena fixture punya
-    // caption tabel (perilaku bawaan yang memang diinginkan).
+    // "daftar_tabel" disisipkan otomatis karena fixture punya caption tabel;
+    // "daftar_isi" disisipkan otomatis karena fixture punya BAB tanpa DAFTAR ISI.
+    // Urutan baku front-matter dinormalkan: abstrak → daftar isi → daftar tabel.
     expect(doc.sections.map((s) => s.type)).toEqual([
       'cover',
-      'daftar_tabel',
       'abstrak',
+      'daftar_isi',
+      'daftar_tabel',
       'bab',
       'bab',
       'bab',
@@ -26,8 +28,8 @@ describe('integrasi penuh: dokumen Meta hasil render Pandoc', () => {
       'daftar_pustaka',
       'bab'
     ]);
-    expect(doc.sections[9].title).toBe('CATATAN PENYUSUNAN');
-    expect(doc.sections[8].type).toBe('daftar_pustaka');
+    expect(doc.sections[10].title).toBe('CATATAN PENYUSUNAN');
+    expect(doc.sections[9].type).toBe('daftar_pustaka');
   });
 
   it('tepat 8 blok tabel dan semuanya memiliki header', () => {
@@ -77,6 +79,17 @@ describe('integrasi penuh: dokumen Meta hasil render Pandoc', () => {
 
   it('cover tidak menyimpan sisa backslash hard-break Pandoc', () => {
     expect(JSON.stringify(doc.cover)).not.toContain('\\');
+  });
+
+  it('contoh AI bawaan memuat tabel contoh beserta judulnya', () => {
+    const sample = parseRawDocument(SAMPLE_AI_RAW_TEXT, cfg);
+    const blocks = sample.sections.flatMap((s) => s.blocks);
+    const table = blocks.find((b) => b.type === 'table');
+
+    expect(table).toBeDefined();
+    expect((table?.meta?.header as string[]) ?? []).toHaveLength(3);
+    expect((table?.meta?.rows as string[][]) ?? []).toHaveLength(3);
+    expect(blocks.some((b) => b.type === 'table_caption')).toBe(true);
   });
 
   it('golden regresi SAMPLE_AI_RAW_TEXT tidak mengalami regresi', () => {
