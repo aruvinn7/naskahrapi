@@ -642,7 +642,7 @@ function sectionBodyParagraphs(section: DocumentSection, typography: Typography)
 
   for (const block of blocksWithoutDuplicateTitle(section)) {
     // Blok image punya formattedContent kosong — jangan ter-skip.
-    if (!block.formattedContent.trim() && block.type !== 'image') continue;
+    if (!block.formattedContent.trim() && block.type !== 'image' && block.type !== 'table') continue;
 
     if (block.type === 'table_caption' || block.type === 'figure_caption') {
       children.push(captionParagraph(block, typography));

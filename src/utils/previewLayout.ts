@@ -278,7 +278,7 @@ export function buildFlowItems(
     blocks.forEach((block) => {
       // Blok image punya formattedContent kosong — tetap masuk flow agar
       // gambarnya dirender.
-      if (!block.formattedContent.trim() && block.type !== 'image') return;
+      if (!block.formattedContent.trim() && block.type !== 'image' && block.type !== 'table') return;
       add({
         id: `block-${block.id}`,
         sectionId: section.id,

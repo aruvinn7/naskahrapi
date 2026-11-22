@@ -7,7 +7,6 @@ import {
   FileDown, 
   Sparkles,
   ChevronDown,
-  Printer,
   ChevronLeft,
   Check,
   Trash2
@@ -261,10 +260,12 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={handlePrint}
                 className="w-full text-left px-3.5 py-2 text-xs text-slate-700 hover:bg-teal-50 hover:text-teal-700 flex items-center space-x-3 transition-colors"
               >
-                <Printer className="w-4 h-4 text-slate-500 shrink-0" />
+                <FileDown className="w-4 h-4 text-teal-600 shrink-0" />
                 <div>
-                  <div className="font-medium text-slate-800">Cetak / Simpan ke PDF</div>
-                  <div className="text-[10px] text-slate-400">Gunakan dialog cetak browser</div>
+                  <div className="font-medium text-slate-800">Unduh PDF</div>
+                  <div className="text-[10px] text-slate-400">
+                    Ukuran asli 100% — pilih &ldquo;Save as PDF&rdquo; di dialog cetak
+                  </div>
                 </div>
               </button>
               <button

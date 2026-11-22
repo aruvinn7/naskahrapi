@@ -40,6 +40,14 @@ interface A4PaperPreviewProps {
   onPaginationChange: (info: PaginationInfo) => void;
   onDeleteImage?: (blockId: string) => void;
   onInsertImageAt?: (file: File, afterBlockId?: string) => void;
+  onInsertTable?: (afterBlockId: string | undefined, rows: number, cols: number) => void;
+  onTableOp?: (
+    blockId: string,
+    op: 'addRow' | 'addCol' | 'delRow' | 'delCol' | 'delTable',
+    row: number,
+    col: number
+  ) => void;
+  onUpdateTableCell?: (blockId: string, row: number, col: number, value: string) => void;
 }
 
 const PX_PER_MM = 96 / 25.4;
@@ -58,7 +66,10 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
   onUpdateSectionTitle,
   onPaginationChange,
   onDeleteImage,
-  onInsertImageAt
+  onInsertImageAt,
+  onInsertTable,
+  onTableOp,
+  onUpdateTableCell
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -68,10 +79,22 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
   const [heights, setHeights] = useState<Record<string, number>>({});
   const [imageTick, setImageTick] = useState(0);
   const [contextMenu, setContextMenu] = useState<
-    { x: number; y: number; blockId: string | null; isImage: boolean } | null
+    {
+      x: number;
+      y: number;
+      blockId: string | null;
+      isImage: boolean;
+      isTable: boolean;
+      row: number;
+      col: number;
+    } | null
   >(null);
   const contextFileRef = useRef<HTMLInputElement>(null);
   const contextAfterBlockId = useRef<string | undefined>(undefined);
+  const [tableGrid, setTableGrid] = useState<
+    { x: number; y: number; afterBlockId: string | null } | null
+  >(null);
+  const [gridHover, setGridHover] = useState({ rows: 2, cols: 3 });
   const [pageInput, setPageInput] = useState('1');
   const pageInputRef = useRef<HTMLInputElement>(null);
 
@@ -646,6 +669,13 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
         textAlign: tableStyle.cellAlignment
       };
 
+      const blockIdForCells = item.block?.id ?? item.id.replace(/^block-/, '');
+      const cellBlur = (row: number, col: number) =>
+        onUpdateTableCell
+          ? (event: React.FocusEvent<HTMLTableCellElement>) =>
+              onUpdateTableCell(blockIdForCells, row, col, event.currentTarget.textContent || '')
+          : undefined;
+
       return (
         <div key={item.id} data-flow-item={item.id} style={{ paddingBottom: '0.55em' }}>
           <table
@@ -661,6 +691,10 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
                 {header.map((cell, index) => (
                   <th
                     key={index}
+                    contentEditable={canEdit}
+                    suppressContentEditableWarning
+                    onBlur={cellBlur(-1, index)}
+                    className={canEdit ? editableClass : undefined}
                     style={{
                       ...cellStyle,
                       fontWeight: tableStyle.headerBold ? 700 : 400,
@@ -676,7 +710,14 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
               {rows.map((row, rowIndex) => (
                 <tr key={rowIndex}>
                   {row.map((cell, cellIndex) => (
-                    <td key={cellIndex} style={cellStyle}>
+                    <td
+                      key={cellIndex}
+                      contentEditable={canEdit}
+                      suppressContentEditableWarning
+                      onBlur={cellBlur(rowIndex, cellIndex)}
+                      className={canEdit ? editableClass : undefined}
+                      style={cellStyle}
+                    >
                       {renderInline(cell)}
                     </td>
                   ))}
@@ -1134,18 +1175,38 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
         className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 flex flex-col items-center scroll-smooth preview-scroll"
         style={{ scrollBehavior: 'smooth' }}
         onContextMenu={(event) => {
-          // Klik kanan ala Word: di mode edit, menu konteks ganti dengan
-          // "Sisipkan Gambar di sini" (di blok yang diklik kanan).
-          if (!isEditMode || !onInsertImageAt) return;
+          // Klik kanan ala Word: di mode edit, menu konteks menawarkan
+          // sisip gambar/tabel (di blok yang diklik kanan) atau operasi
+          // tabel bila klik kanan jatuh di sel tabel.
+          if (!isEditMode) return;
           const target = event.target as HTMLElement;
           const flowEl = target.closest('[data-flow-item]');
           if (!flowEl) return;
+          const blockId = (flowEl.getAttribute('data-flow-item') ?? '').replace(/^block-/, '');
+          const cellEl = target.closest('td,th') as HTMLTableCellElement | null;
+          const inTable = Boolean(cellEl && flowEl.querySelector('table'));
+          let row = 0;
+          let col = 0;
+          if (cellEl && inTable) {
+            col = cellEl.cellIndex ?? 0;
+            const tr = cellEl.closest('tr');
+            const siblings = tr?.parentElement?.children;
+            row =
+              tr?.parentElement?.tagName === 'THEAD'
+                ? -1
+                : siblings
+                  ? Array.from(siblings).indexOf(tr as Element)
+                  : 0;
+          }
           event.preventDefault();
           setContextMenu({
             x: event.clientX,
             y: event.clientY,
-            blockId: (flowEl.getAttribute('data-flow-item') ?? '').replace(/^block-/, ''),
-            isImage: (flowEl.querySelector(':scope > img') ?? null) !== null
+            blockId,
+            isImage: (flowEl.querySelector(':scope > img') ?? null) !== null,
+            isTable: inTable,
+            row,
+            col
           });
         }}
       >
@@ -1233,33 +1294,142 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
           <div
             className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[200px] no-print"
             style={{
-              left: Math.min(contextMenu.x, window.innerWidth - 220),
-              top: Math.min(contextMenu.y, window.innerHeight - 110)
+              left: Math.min(contextMenu.x, window.innerWidth - 230),
+              top: Math.min(contextMenu.y, window.innerHeight - 200)
             }}
           >
-            <button
-              type="button"
-              onClick={() => {
-                contextAfterBlockId.current = contextMenu.blockId ?? undefined;
-                contextFileRef.current?.click();
-                setContextMenu(null);
-              }}
-              className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-teal-50 hover:text-teal-700 flex items-center space-x-2"
-            >
-              <span>🖼 Sisipkan Gambar di sini</span>
-            </button>
-            {contextMenu.isImage && onDeleteImage && (
-              <button
-                type="button"
-                onClick={() => {
-                  onDeleteImage(contextMenu.blockId ?? '');
-                  setContextMenu(null);
-                }}
-                className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center space-x-2"
-              >
-                <span>🗑 Hapus gambar</span>
-              </button>
+            {contextMenu.isTable && onTableOp ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onTableOp(contextMenu.blockId ?? '', 'addRow', contextMenu.row, contextMenu.col);
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-teal-50 hover:text-teal-700"
+                >
+                  ▥ Tambah baris di bawah
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onTableOp(contextMenu.blockId ?? '', 'addCol', contextMenu.row, contextMenu.col);
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-teal-50 hover:text-teal-700"
+                >
+                  ▥ Tambah kolom di kanan
+                </button>
+                {contextMenu.row >= 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onTableOp(contextMenu.blockId ?? '', 'delRow', contextMenu.row, contextMenu.col);
+                      setContextMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-amber-50 hover:text-amber-700"
+                  >
+                    ▥ Hapus baris
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onTableOp(contextMenu.blockId ?? '', 'delCol', contextMenu.row, contextMenu.col);
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-amber-50 hover:text-amber-700"
+                >
+                  ▥ Hapus kolom
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onTableOp(contextMenu.blockId ?? '', 'delTable', contextMenu.row, contextMenu.col);
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50"
+                >
+                  🗑 Hapus tabel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    contextAfterBlockId.current = contextMenu.blockId ?? undefined;
+                    contextFileRef.current?.click();
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-teal-50 hover:text-teal-700 flex items-center space-x-2"
+                >
+                  <span>🖼 Sisipkan Gambar di sini</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTableGrid({
+                      x: contextMenu.x,
+                      y: contextMenu.y,
+                      afterBlockId: contextMenu.blockId
+                    });
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-teal-50 hover:text-teal-700 flex items-center space-x-2"
+                >
+                  <span>▦ Sisipkan Tabel</span>
+                </button>
+                {contextMenu.isImage && onDeleteImage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDeleteImage(contextMenu.blockId ?? '');
+                      setContextMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                  >
+                    <span>🗑 Hapus gambar</span>
+                  </button>
+                )}
+              </>
             )}
+          </div>
+        </>
+      )}
+
+      {tableGrid && (
+        <>
+          <div className="fixed inset-0 z-40 no-print" onClick={() => setTableGrid(null)} />
+          <div
+            className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-2 no-print"
+            style={{
+              left: Math.min(tableGrid.x, window.innerWidth - 200),
+              top: Math.min(tableGrid.y, window.innerHeight - 240)
+            }}
+          >
+            <div className="text-[10px] text-slate-500 mb-1 font-mono text-center">
+              {gridHover.rows} × {gridHover.cols} tabel
+            </div>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(8, 18px)' }}>
+              {Array.from({ length: 64 }).map((_, index) => {
+                const rows = Math.floor(index / 8) + 1;
+                const cols = (index % 8) + 1;
+                const active = rows <= gridHover.rows && cols <= gridHover.cols;
+                return (
+                  <div
+                    key={index}
+                    onMouseEnter={() => setGridHover({ rows, cols })}
+                    onClick={() => {
+                      onInsertTable?.(tableGrid.afterBlockId ?? undefined, rows, cols);
+                      setTableGrid(null);
+                    }}
+                    className={active ? 'bg-teal-200 border border-teal-400' : 'bg-slate-50 border border-slate-200'}
+                    style={{ width: 18, height: 18 }}
+                  />
+                );
+              })}
+            </div>
           </div>
         </>
       )}

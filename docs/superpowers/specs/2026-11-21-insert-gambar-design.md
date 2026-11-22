@@ -87,3 +87,17 @@ Ctrl+V) + **penomoran otomatis** ("Gambar 1, 2, 3…" menyesuaikan posisi).
   bergeser; hapus → menyesuaikan); regenerasi daftar; ekspor berisi ImageRun.
 - Browser: 3 jalur insert di HP & desktop, caption editable, daftar gambar
   ter-update, ekspor Word berisi gambar+caption.
+
+## Tambahan (2026-11-21): Sisip & Edit Tabel
+
+- Klik kanan mode edit → "▦ Sisipkan Tabel" → **grid hover ala Word** (8×8,
+  hover memilih baris×kolom, klik menyisipkan).
+- Sisipan: caption di **atas** tabel (kaidah judul tabel) "Tabel {bab}.{urut}
+  Judul tabel" + blok table kosong sesuai ukuran; renumberCaptions
+  menormalkan nomor & DAFTAR TABEL.
+- Sel editable di mode Edit Teks Langsung (onBlur → update meta.header/rows).
+- Klik kanan pada tabel → opsi tabel: Tambah baris di bawah, Tambah kolom di
+  kanan, Hapus baris, Hapus kolom, Hapus tabel (posisi baris/kolom dari sel
+  yang diklik kanan; header tidak bisa dihapus barisnya; minimal 1 kolom).
+- Logika mutasi murni di util `tableOps.ts` (makeEmptyTable, applyTableOp)
+  agar bisa di-unit-test.

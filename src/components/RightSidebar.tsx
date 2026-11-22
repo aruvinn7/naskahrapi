@@ -1405,6 +1405,20 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                   </ul>
                 </div>
               )}
+
+              {citationAnalysis.unusedReferences.length > 0 && (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 space-y-1">
+                  <div className="font-semibold flex items-center space-x-1">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Entri pustaka yang tidak pernah disitasi:</span>
+                  </div>
+                  <ul className="list-disc pl-4 text-[10px] space-y-0.5">
+                    {citationAnalysis.unusedReferences.map((entry, idx) => (
+                      <li key={idx}>{entry}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
 

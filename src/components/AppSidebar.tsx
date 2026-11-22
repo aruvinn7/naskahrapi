@@ -5,8 +5,10 @@ import {
   ChevronRight,
   FileEdit,
   GraduationCap,
+  History,
   Home
 } from 'lucide-react';
+import { HISTORY_LIMIT, type HistoryEntry } from '../utils/docHistory';
 
 export type NavPage = 'beranda' | 'editor' | 'pedoman';
 
@@ -17,6 +19,9 @@ interface AppSidebarProps {
   docTitle?: string;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  history: HistoryEntry[];
+  onRestoreHistory: (id: string) => void;
+  onDeleteHistory: (id: string) => void;
 }
 
 const NAV_ITEMS: Array<{
@@ -36,7 +41,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   hasDocument,
   docTitle,
   isCollapsed,
-  onToggleCollapse
+  onToggleCollapse,
+  history,
+  onRestoreHistory,
+  onDeleteHistory
 }) => {
   return (
     <aside
@@ -151,6 +159,57 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 Buka editor
               </button>
             </>
+          )}
+        </div>
+      )}
+
+      {/* Riwayat dokumen: daftar snapshot yang bisa dipulihkan */}
+      {!isCollapsed && (
+        <div className="shrink-0 border-t border-white/10 px-3 py-3">
+          <div className="flex items-center space-x-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <History className="w-3 h-3" />
+            <span>Riwayat</span>
+            <span className="ml-auto text-[9px] font-normal normal-case tracking-normal text-slate-500">
+              Maksimal {HISTORY_LIMIT} dokumen
+            </span>
+          </div>
+          {history.length === 0 ? (
+            <p className="mt-2 text-[10px] text-slate-500 leading-snug">
+              Belum ada riwayat. Dokumen lama otomatis masuk riwayat saat Anda membuat yang baru.
+            </p>
+          ) : (
+            <div className="mt-2 space-y-1 max-h-44 overflow-y-auto pr-1">
+              {history.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="group flex items-center justify-between rounded-lg px-1.5 py-1 hover:bg-white/10 transition-colors"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onRestoreHistory(entry.id)}
+                    className="min-w-0 flex-1 text-left"
+                    title={`Pulihkan ${entry.name}`}
+                  >
+                    <div className="text-[11px] text-slate-200 truncate">{entry.name}</div>
+                    <div className="text-[9px] text-slate-500 font-mono">
+                      {new Date(entry.savedAt).toLocaleDateString('id-ID', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                      })}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteHistory(entry.id)}
+                    title="Hapus dari riwayat"
+                    className="px-1 text-slate-500 hover:text-red-400 focus-visible:outline-none"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

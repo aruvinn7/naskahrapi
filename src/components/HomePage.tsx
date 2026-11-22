@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   UploadCloud, 
   Sparkles, 
@@ -23,12 +23,14 @@ interface HomePageProps {
   onProcessText: (text: string, fileName: string, template: DocumentTemplate) => void;
   onOpenSample: () => void;
   currentConfig: DocumentConfig;
+  requestedTemplate?: DocumentTemplate | null;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
   onProcessText,
   onOpenSample,
-  currentConfig
+  currentConfig,
+  requestedTemplate
 }) => {
   const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload');
   
@@ -45,6 +47,11 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   // Selected Template
   const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplate>('makalah');
+
+  // Preset yang diminta dari halaman Pedoman (chip "Gunakan preset").
+  useEffect(() => {
+    if (requestedTemplate) setSelectedTemplate(requestedTemplate);
+  }, [requestedTemplate]);
 
   // Handle Drag & Drop
   const handleDrag = (e: React.DragEvent) => {
@@ -148,12 +155,11 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
 
           <h1 className="text-xl md:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
-            Rapikan Draf AI Jadi Dokumen Resmi{' '}
-            <span className="text-teal-600">Standar Akademik Indonesia</span>
+            Draf AI jadi makalah <span className="text-teal-600">siap kumpul</span>
           </h1>
 
           <p className="text-xs md:text-sm text-slate-600 max-w-2xl mx-auto leading-snug">
-            Unggah file Word atau tempel teks dari AI untuk diformat otomatis sesuai margin 4-3-3-3 cm, Times New Roman 12 pt, dan spasi 1.5.
+            Tempel teks AI atau unggah Word — format kampus diatur otomatis.
           </p>
         </div>
 
@@ -380,7 +386,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               Hapus Jejak AI Otomatis
             </h3>
             <p className="text-[11px] text-slate-500 leading-snug">
-              Menghilangkan basa-basi chatbot ("Tentu, ini draf...", "Semoga membantu!"), simbol bintang (**), pagar (#), dan bullet liar.
+              Bersihkan basa-basi chatbot, simbol markdown, dan bullet liar.
             </p>
           </div>
 
@@ -392,7 +398,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               Standar Kampus Indonesia
             </h3>
             <p className="text-[11px] text-slate-500 leading-snug">
-              A4, margin 4-3-3-3 cm (atau 4-4-3-3), Times New Roman 12 pt, spasi 1.5/2.0, rata kanan-kiri, indentasi 0,75 cm.
+              Margin, font, spasi, dan indentasi sesuai pedoman kampus.
             </p>
           </div>
 
@@ -404,7 +410,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               Unduh Word (.docx) Asli
             </h3>
             <p className="text-[11px] text-slate-500 leading-snug">
-              Word asli dengan Daftar Isi bertitik-titik dan Daftar Pustaka hanging indent, siap diserahkan ke dosen.
+              Daftar Isi, Daftar Pustaka, dan nomor halaman ikut terformat rapi.
             </p>
           </div>
         </div>

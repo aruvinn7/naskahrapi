@@ -146,6 +146,8 @@
 
   .preview-scale {
     transform: none !important;
+    /* Zoom pratinjau (inline style) tidak ikut ke hasil cetak/PDF: selalu 100%. */
+    zoom: 1 !important;
     transition: none !important;
     padding: 0 !important;
     margin: 0 !important;

@@ -22,6 +22,9 @@ import { SAMPLE_AI_RAW_TEXT } from './data/sampleDocument';
 import { applyKbbiCorrections } from './utils/kbbiCorrector';
 import { FOREIGN_TERMS, isBibliographySection, italicizeTerm } from './utils/foreignTermCorrector';
 import { compressImageFile, renumberCaptions } from './utils/figureNumbering';
+import { applyTableOp, makeEmptyTable, TableMeta, TableOp } from './utils/tableOps';
+import { addToHistory, loadHistory, removeHistoryEntry, saveHistory } from './utils/docHistory';
+import type { HistoryEntry } from './utils/docHistory';
 import { sortBibliographyBlocks } from './utils/citationHelper';
 import { applyTemplatePreset } from './utils/templatePresets';
 import { isTitleBlock, PaginationInfo } from './utils/previewLayout';
@@ -226,6 +229,13 @@ export function App() {
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
+  const [pendingTemplate, setPendingTemplate] = useState<DocumentTemplate | null>(null);
+
+  // Riwayat tersimpan ke localStorage setiap kali berubah (autosave pattern).
+  useEffect(() => {
+    saveHistory(history);
+  }, [history]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const toastTimer = useRef<number | null>(null);
@@ -286,6 +296,9 @@ export function App() {
     const parsed = parseRawDocument(text, updatedConfig);
     parsed.fileName = fileName;
 
+    // Arsipkan dokumen aktif sebelum digantikan agar tidak hilang.
+    setHistory((prev) => addToHistory(prev, doc, config));
+
     setConfig(updatedConfig);
     setDoc(parsed);
     setCurrentPage(1);
@@ -297,6 +310,8 @@ export function App() {
   const handleFormatText = (text: string, fileName?: string) => {
     const parsed = parseRawDocument(text, config);
     if (fileName) parsed.fileName = fileName;
+
+    setHistory((prev) => addToHistory(prev, doc, config));
 
     setDoc(parsed);
     setCurrentPage(1);
@@ -542,6 +557,132 @@ export function App() {
     });
   };
 
+  const handleInsertTable = (afterBlockId: string | undefined, rows: number, cols: number) => {
+    const stamp = Date.now();
+    const captionId = `blk-tcap-${stamp}`;
+    const tableId = `blk-tbl-${stamp}`;
+    const meta = makeEmptyTable(rows, cols);
+
+    setDoc((previous) => {
+      const copy = JSON.parse(JSON.stringify(previous)) as ParsedDocument;
+      const newBlocks = [
+        {
+          id: captionId,
+          type: 'table_caption' as const,
+          rawContent: 'Judul tabel',
+          formattedContent: 'Judul tabel',
+          meta: { autoCaption: true }
+        },
+        {
+          id: tableId,
+          type: 'table' as const,
+          rawContent: 'Tabel',
+          formattedContent: 'Tabel',
+          meta
+        }
+      ];
+
+      // Posisi ala Word: setelah blok yang diklik kanan; fallback akhir
+      // section yang sedang dilihat / BAB terakhir.
+      let target: (typeof copy.sections)[number] | undefined;
+      let insertIndex = -1;
+      if (afterBlockId) {
+        for (const section of copy.sections) {
+          const index = section.blocks.findIndex((block) => block.id === afterBlockId);
+          if (index >= 0) {
+            target = section;
+            insertIndex = index + 1;
+            break;
+          }
+        }
+      }
+      if (!target) {
+        const activeIndex = copy.sections.findIndex((s) => s.id === activeSectionId);
+        target = activeIndex >= 0 ? copy.sections[activeIndex] : undefined;
+        if (!target) target = copy.sections.find((s) => s.type === 'bab');
+        insertIndex = target ? target.blocks.length : -1;
+      }
+      if (!target || insertIndex < 0) return previous;
+
+      target.blocks.splice(insertIndex, 0, ...newBlocks);
+      target.blockCount = target.blocks.length;
+      renumberCaptions(copy);
+      return copy;
+    });
+
+    notify('Tabel disisipkan — ketik judul pada caption di atas tabel.');
+  };
+
+  const handleTableOp = (blockId: string, op: TableOp, row: number, col: number) => {
+    setDoc((previous) => {
+      const copy = JSON.parse(JSON.stringify(previous)) as ParsedDocument;
+      for (let si = 0; si < copy.sections.length; si++) {
+        const section = copy.sections[si];
+        const index = section.blocks.findIndex((block) => block.id === blockId);
+        if (index < 0 || section.blocks[index].type !== 'table') continue;
+
+        const block = section.blocks[index];
+        const meta = (block.meta ?? {}) as TableMeta;
+        const result = applyTableOp(meta, op, row, col);
+
+        if (result._delete) {
+          // Hapus tabel + caption di atasnya (bila ada), lalu perbarui nomor.
+          const prev = section.blocks[index - 1];
+          const removeCaption = Boolean(prev && prev.type === 'table_caption');
+          section.blocks.splice(removeCaption ? index - 1 : index, removeCaption ? 2 : 1);
+          section.blockCount = section.blocks.length;
+          renumberCaptions(copy);
+          return copy;
+        }
+
+        block.meta = { ...(block.meta ?? {}), header: result.header, rows: result.rows };
+        break;
+      }
+      return copy;
+    });
+  };
+
+  const handleUpdateTableCell = (blockId: string, row: number, col: number, value: string) => {
+    setDoc((previous) => {
+      const copy = JSON.parse(JSON.stringify(previous)) as ParsedDocument;
+      for (const section of copy.sections) {
+        const block = section.blocks.find((item) => item.id === blockId);
+        if (block?.type !== 'table') continue;
+        const meta = (block.meta ?? {}) as TableMeta;
+        if (row < 0) {
+          if (col < meta.header.length) meta.header[col] = value;
+        } else if (meta.rows[row] && col < meta.rows[row].length) {
+          meta.rows[row][col] = value;
+        }
+        break;
+      }
+      return copy;
+    });
+  };
+
+  const handleRestoreHistory = (id: string) => {
+    const entry = history.find((item) => item.id === id);
+    if (!entry) return;
+
+    // Dokumen aktif saat ini diarsipkan dulu (swap dua arah, tanpa kehilangan).
+    setHistory((prev) => {
+      const archived = addToHistory(prev, doc, config);
+      return removeHistoryEntry(archived, id);
+    });
+
+    setDoc(JSON.parse(JSON.stringify(entry.doc)));
+    setConfig(JSON.parse(JSON.stringify(entry.config)));
+    setCurrentPage(1);
+    setActiveSectionId(entry.doc.sections[0]?.id ?? null);
+    navigate('editor');
+    notify(`Dokumen "${entry.name}" dipulihkan dari riwayat.`);
+  };
+
+  const handleDeleteHistory = (id: string) => {
+    setHistory((prev) => removeHistoryEntry(prev, id));
+    notify('Entri riwayat dihapus.');
+  };
+
   const handleSortBibliography = () => {
     setDoc((previous) => ({
       ...previous,
@@ -609,6 +750,9 @@ export function App() {
   };
 
   const handleConfirmClear = () => {
+    // Kosongkan tetap mengarsipkan dokumen aktif dulu ke riwayat.
+    setHistory((prev) => addToHistory(prev, doc, config));
+
     const blankBlock: ParsedDocument['sections'][number]['blocks'][number] = {
       id: 'blk-1',
       type: 'cover' as BlockType,
@@ -673,6 +817,9 @@ export function App() {
           docTitle={doc.fileName}
           isCollapsed={isMobileNavOpen ? false : isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          history={history}
+          onRestoreHistory={handleRestoreHistory}
+          onDeleteHistory={handleDeleteHistory}
         />
       </div>
 
@@ -702,6 +849,7 @@ export function App() {
               notify('Membuka pratinjau contoh dokumen.');
             }}
             currentConfig={config}
+            requestedTemplate={pendingTemplate}
           />
         )}
 
@@ -766,6 +914,9 @@ export function App() {
                   onInsertImageAt={(file, afterBlockId) =>
                     void handleInsertImage(file, afterBlockId)
                   }
+                  onInsertTable={handleInsertTable}
+                  onTableOp={handleTableOp}
+                  onUpdateTableCell={handleUpdateTableCell}
                   onDeleteImage={handleDeleteImage}
                 />
               ) : (
@@ -840,7 +991,13 @@ export function App() {
         )}
 
         {activePage === 'pedoman' && (
-          <PedomanPage onNavigate={navigate} />
+          <PedomanPage
+            onNavigate={navigate}
+            onUsePreset={(template) => {
+              setPendingTemplate(template);
+              navigate('beranda');
+            }}
+          />
         )}
       </div>
 
