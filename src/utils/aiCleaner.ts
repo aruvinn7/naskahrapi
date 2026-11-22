@@ -21,7 +21,7 @@ const AI_INTRO_PATTERNS = [
 // memakan seluruh sisa teks, sehingga makalah terpotong di tengah (mis. setelah
 // kalimat "semoga makalah ini dapat bermanfaat" di Kata Pengantar).
 const AI_OUTRO_PATTERNS = [
-  /(?:semoga\s+(?:draf|makalah|penjelasan|informasi|tulisan)\s+ini\s+(?:dapat\s+)?(?:membantu|bermanfaat))/i,
+  /(?:semoga\s+(?:draf|makalah|skripsi|artikel(?:\s+jurnal)?|jurnal|penjelasan|informasi|tulisan)\s+ini\s+(?:dapat\s+)?(?:membantu|bermanfaat))/i,
   /(?:apabila\s+(?:ada|terdapat)\s+(?:pertanyaan|bagian\s+yang\s+ingin\s+ditambahkan|revisi))/i,
   /(?:jangan\s+ragu\s+untuk\s+(?:bertanya|meminta\s+revisi))/i,
   /(?:hope\s+this\s+(?:helps|is\s+useful)|feel\s+free\s+to\s+ask)/i,
@@ -784,8 +784,13 @@ export function parseRawDocument(rawText: string, config: DocumentConfig): Parse
     sections.splice(insertAt, 0, section);
   };
 
-  applyCaptionList('daftar_tabel', 'DAFTAR TABEL', 'daftar_tabel_item', tableEntries);
-  applyCaptionList('daftar_gambar', 'DAFTAR GAMBAR', 'daftar_gambar_item', figureEntries);
+  // Template jurnal tidak punya Daftar Tabel/Gambar/Isi — caption tetap
+  // dirender sebagai bagian isi, bukan diumpet jadi daftar.
+  const isJournalParse = config?.template === 'jurnal';
+  if (!isJournalParse) {
+    applyCaptionList('daftar_tabel', 'DAFTAR TABEL', 'daftar_tabel_item', tableEntries);
+    applyCaptionList('daftar_gambar', 'DAFTAR GAMBAR', 'daftar_gambar_item', figureEntries);
+  }
 
   // Daftar Isi otomatis: jika dokumen punya BAB/bagian besar tapi tidak
   // mencantumkan DAFTAR ISI, section dibuatkan agar pratinjau & Word tetap
@@ -793,7 +798,9 @@ export function parseRawDocument(rawText: string, config: DocumentConfig): Parse
   const hasDaftarIsi = sections.some((section) => section.type === 'daftar_isi');
   const firstBabIndex = sections.findIndex((section) => section.type === 'bab');
 
-  if (!hasDaftarIsi && firstBabIndex >= 0) {
+  if (isJournalParse) {
+    // Tanpa Daftar Isi — struktur artikel jurnal mengalir tanpa daftar.
+  } else if (!hasDaftarIsi && firstBabIndex >= 0) {
     const daftarIsiSection: DocumentSection = {
       id: 'sec-daftar-isi',
       title: 'DAFTAR ISI',

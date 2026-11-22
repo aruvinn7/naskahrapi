@@ -1013,6 +1013,7 @@ export function App() {
           isOpen={isPasteModalOpen}
           onClose={() => setIsPasteModalOpen(false)}
           onFormatText={handleFormatText}
+          template={config.template}
         />
 
         <CompareModal

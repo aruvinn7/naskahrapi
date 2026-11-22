@@ -37,6 +37,36 @@ export interface JournalFront {
 
 const KEYWORDS_RE = /^(keywords?|kata\s*kunci)\s*[:.]?\s*/i;
 
+const AFFILIATION_HINT_RE = /(universitas|fakultas|jurusan|program studi|institut|lab\.|laboratorium|sekolah tinggi|politeknik)/i;
+
+/**
+ * Draf jurnal umumnya menulis byline polos: judul, nama penulis, afiliasi —
+ * tanpa "Disusun oleh:", sehingga extractCoverData tidak membentuk members.
+ * Fallback: cari baris pendek setelah judul sebagai penulis dan baris
+ * berikutnya yang mengandung kata kunci afiliasi.
+ */
+function findJournalByline(doc: ParsedDocument): { author: string; affiliation: string } {
+  const coverSection = doc.sections.find((section) => section.type === 'cover');
+  const lines = (coverSection?.blocks ?? [])
+    .map((block) => block.formattedContent.trim())
+    .filter(Boolean);
+  if (lines.length < 2) return { author: '', affiliation: '' };
+
+  const titleLine = (doc.cover?.title || doc.title || '').trim();
+  const titleIndex = lines.findIndex((line) => line === titleLine);
+  const bylineStart = titleIndex >= 0 ? titleIndex + 1 : 1;
+
+  const author = (lines[bylineStart] ?? '').trim();
+  const authorIsPlausible = author.length > 0 && author.length <= 48 && !AFFILIATION_HINT_RE.test(author);
+  const affiliationLine = lines.slice(bylineStart + (authorIsPlausible ? 1 : 0)).find((line) =>
+    AFFILIATION_HINT_RE.test(line)
+  );
+  return {
+    author: authorIsPlausible ? author : '',
+    affiliation: (affiliationLine ?? '').trim()
+  };
+}
+
 /**
  * Front matter artikel jurnal: judul + penulis + afiliasi (dari data cover —
  * kosong bila tidak diisi) + daftar abstrak (EN & ID dari section
@@ -45,11 +75,13 @@ const KEYWORDS_RE = /^(keywords?|kata\s*kunci)\s*[:.]?\s*/i;
 export function buildJournalFront(doc: ParsedDocument): JournalFront {
   const cover = doc.cover;
   const title = (cover?.title || doc.title || '').trim();
-  const author = (cover?.members?.[0]?.name ?? '').trim();
-  const affiliation = [cover?.studyProgram, cover?.department, cover?.institution]
-    .map((part) => (part ?? '').trim())
-    .filter(Boolean)
-    .join(', ');
+  const bylineFallback = findJournalByline(doc);
+  const author = (cover?.members?.[0]?.name ?? '').trim() || bylineFallback.author;
+  const affiliation =
+    [cover?.studyProgram, cover?.department, cover?.institution]
+      .map((part) => (part ?? '').trim())
+      .filter(Boolean)
+      .join(', ') || bylineFallback.affiliation;
 
   const abstracts: JournalAbstract[] = [];
   doc.sections.forEach((section) => {

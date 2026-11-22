@@ -10,20 +10,24 @@ import {
   Copy,
   ChevronDown
 } from 'lucide-react';
-import { SAMPLE_AI_RAW_TEXT } from '../data/sampleDocument';
+import { getSampleAiText, getSampleFileName } from '../data/sampleDocument';
 import { buildAiPromptTemplate } from '../utils/promptTemplate';
+import { DocumentTemplate } from '../types/document';
 import mammoth from 'mammoth';
 
 interface PasteModalProps {
   isOpen: boolean;
   onClose: () => void;
   onFormatText: (text: string, fileName?: string) => void;
+  /** Template aktif — menentukan contoh draf & prompt yang ditawarkan. */
+  template?: DocumentTemplate;
 }
 
 export const PasteModal: React.FC<PasteModalProps> = ({
   isOpen,
   onClose,
-  onFormatText
+  onFormatText,
+  template
 }) => {
   const [inputText, setInputText] = useState('');
   const [isReadingFile, setIsReadingFile] = useState(false);
@@ -36,7 +40,7 @@ export const PasteModal: React.FC<PasteModalProps> = ({
 
   const handleCopyTemplate = async () => {
     try {
-      await navigator.clipboard.writeText(buildAiPromptTemplate());
+      await navigator.clipboard.writeText(buildAiPromptTemplate(template ?? 'makalah'));
       setCopyError(null);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -48,8 +52,8 @@ export const PasteModal: React.FC<PasteModalProps> = ({
   };
 
   const handleUseSample = () => {
-    setInputText(SAMPLE_AI_RAW_TEXT);
-    setUploadedName('MAKALAH_SAMPLE_AI.docx');
+    setInputText(getSampleAiText(template));
+    setUploadedName(getSampleFileName(template));
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

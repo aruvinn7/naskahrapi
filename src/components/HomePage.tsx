@@ -15,7 +15,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { DocumentTemplate, DocumentConfig } from '../types/document';
-import { SAMPLE_AI_RAW_TEXT } from '../data/sampleDocument';
+import { getSampleAiText, getSampleFileName } from '../data/sampleDocument';
 import { TEMPLATE_DESCRIPTIONS } from '../utils/templatePresets';
 import mammoth from 'mammoth';
 
@@ -122,9 +122,10 @@ export const HomePage: React.FC<HomePageProps> = ({
   };
 
   const handleLoadSample = () => {
-    setPastedText(SAMPLE_AI_RAW_TEXT);
-    setDocumentTitle('MAKALAH_DAMPAK_AI.docx');
-    setSelectedTemplate('makalah');
+    // Contoh mengikuti format pedoman yang dipilih: jurnal → artikel jurnal,
+    // lainnya → makalah lengkap.
+    setPastedText(getSampleAiText(selectedTemplate));
+    setDocumentTitle(getSampleFileName(selectedTemplate));
     setActiveTab('paste');
   };
 

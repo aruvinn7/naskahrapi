@@ -117,3 +117,77 @@ Mytton, D. (2021). Data centre water consumption. npj Clean Water, 4(1), 1-6.
 UNESCO. (2023). The United Nations World Water Development Report 2023: Partnerships and cooperation for water. UNESCO Publishing.
 
 Semoga makalah ini bermanfaat untuk tugas kuliah Anda! Jangan ragu untuk bertanya lagi jika butuh bagian tambahan.`;
+
+export const SAMPLE_JOURNAL_RAW_TEXT = `Tentu, berikut adalah draf lengkap artikel jurnal ilmiah mengenai rancang bangun sensor pergeseran tanah digital. Semoga draf ini membantu penulisan artikel jurnal Anda!
+
+RANCANG BANGUN SENSOR PERGESERAN TANAH DIGITAL
+
+Suryono
+
+Lab. Instrumentasi dan Elektronika Jurusan Fisika FMIPA UNDIP Semarang
+
+ABSTRACT
+The research has been produced digital displacement field sensor system. This system can be applied on displacement level monitoring of building, bridge, dike and so forth. The field displacement sensor use sliding potentiometer and a 10 bit Analog to Digital Converter (ADC) at microcontroller. The value of field displacement is sent digitally as multi byte serial data through UART serial communication protocol. The system has 1 mm resolution specification with the range of measurement up to 57 meters. From the sensor's output has been acquired the output of the system with the equation y = 0,990x + 0,154 with the linear correlation 0,998.
+
+Keyword : Displacement, digital, serial
+
+ABSTRAK
+Pada penelitian telah dilakukan pembuatan sensor sistem pergeseran tanah digital. Sistem ini dapat diaplikasikan pada pemantauan tingkat pergeseran tanah bangunan, jembatan, tanggul dan masih banyak aplikasi lainnya. Sensor pergeseran tanah memanfaatkan potensiometer geser yang mengubah jarak menjadi tegangan menggunakan Analog to Digital Converter (ADC) 10 bit pada mikrokontroler ATmega8535. Besar pergeseran tanah dikirim secara digital berupa data serial multi bit melalui protokol komunikasi serial UART. Sistem memiliki spesifikasi resolusi 1 mm dengan rentang pengukuran hingga 57 m. Dari regresi data pembacaan hasil keluaran sensor diperoleh keluaran sistem dengan persamaan y = 0,990x + 0,154 dengan korelasi linier 0,998.
+
+Kata kunci : pergeseran, digital, serial
+
+# Pendahuluan
+Pembangunan perumahan untuk memenuhi kebutuhan akan tempat tinggal dan juga pembangunan jalan raya sebagai jalur transportasi mengakibatkan pembukaan lahan untuk memenuhi kebutuhan tersebut juga bertambah. Pada dasarnya tanah merupakan material yang terdiri dari agregat (butiran) mineral-mineral padat yang tidak tersementasi satu sama lain dan dari bahan-bahan organik yang telah melapuk, disertai dengan zat cair dan gas yang mengisi ruang-ruang kosong di antara partikel-partikel padat tersebut [1].
+
+Penambahan beban lalu lintas pada konstruksi perkerasan jalan dan perumahan akan mempengaruhi pergerakan tanah di bawahnya yang akan menyebabkan keretakan di jalan raya dan tanah longsor. Oleh karena itu diperlukan alat ukur pergeseran tanah yang bekerja secara digital sehingga dapat dihubungkan langsung ke komputer untuk pemantauan berkelanjutan [2].
+
+# Dasar Teori
+Potensio geser merupakan salah satu jenis resistor variabel yaitu resistor yang dapat diubah nilai tahanannya. Potensiometer geser memiliki sebuah pita film yang disebut sebagai jalur (track) yang terbuat dari karbon konduktif. Ujung-ujung jalur terhubung ke dua buah terminal potensiometer [3].
+
+Terminal ketiga dari komponen ini disambungkan ke wiper, yaitu sebuah strip logam yang bersifat lentur dan menekan kuat pada jalur karbon untuk membentuk hubungan listrik. Jika knop geser diubah secara translasi sebesar dL maka akan menghasilkan perubahan resistansi dR berdasarkan persamaan [3].
+
+Tabel 1.1: Hubungan translasi wiper dengan perubahan resistansi
+
+| Translasi dL (mm) | Perubahan dR (kOhm) | Tegangan keluaran (V) |
+| --- | --- | --- |
+| 0 | 0,00 | 1,00 |
+| 30 | 4,98 | 2,99 |
+| 57 | 9,86 | 4,51 |
+
+Proses pengubahan terjadi pada analog to digital converter. Proses pengubahan ini dikenal juga dengan nama sistem akuisisi data. Terdapat empat macam pengubah data analog menjadi data digital yang memenuhi standar industri, yaitu integrating, tracking converter, successive approximation dan flash/paralel [4].
+
+# Metoda Penelitian
+Pada perancangan sensor sistem pergeseran tanah ini menggunakan potensio geser sebagai sensor yang berfungsi untuk mengukur besar pergeseran tanah. Pergeseran dari potensio geser menyebabkan perubahan pada hambatan keluaran yang dapat mewakili besar pergeseran tanah. Potensio geser dihubungkan dengan sumber arus tetap, sehingga tegangan keluarannya sebanding dengan pergeseran translasinya [5].
+
+Tegangan keluaran tersebut dibaca oleh mikrokontroler ATmega8535. Pemrograman yang harus dilakukan pertama kali adalah melakukan inisialisasi port dan inisialisasi ADC meliputi proses penentuan clock, tegangan referensi, format output data dan mode pembacaan. Register yang perlu diset nilainya adalah ADMUX (ADC Multiplexer Selection Register) dan ADCSRA (ADC Control and Status Register A).
+
+Diagram blok dari sistem sensor pergeseran tanah ini terdiri dari potensio geser yang dipancangkan pada tanah, mikrokontroler ATmega8535, antarmuka RS-232 dan komputer sebagai pembaca data [6].
+
+# Hasil dan Pembahasan
+Pengujian sistem sensor pergeseran tanah dilakukan dengan menghubungkan rangkaian pendeteksi pergeseran tanah dengan tegangan 5 Volt dan multitester pada keluarannya. Pengujian dilakukan mulai dari jarak pergeseran 1 mm sampai pada jarak maksimum sebesar 60 mm. Sistem dipancangkan pada tanah gundukan dan digerakkan dengan mengeser tanah tersebut serta mengukur pergeserannya dengan alat meter standar [6].
+
+Dari grafik pengujian dapat dijelaskan bahwa keluaran tegangan sensor terhadap jarak tidak linier. Karakteristiknya membentuk persamaan y = 0,001x2 - 0,019x + 1,163 dengan korelasi antar kedua variabel 0,983. Rentang sensor berkisar antara 0 s.d 57 mm, di atas rentang tersebut karakteristiknya telah berubah dan tidak memiliki tren yang baik.
+
+Maka secara elektronik diselesaikan dengan metoda look-up table yang ditulis pada mikrokontroler. Metode ini menghasilkan keluaran sensor linier terhadap pergeseran tanah dengan persamaan y = 0,990x + 0,154 dan korelasi 99,8 persen.
+
+# Daftar Pustaka
+Das, B. (1998). Mekanika Tanah (Prinsip-Prinsip Rekayasa Geoteknis) Jilid-1. Penerbit Erlangga, Jakarta.
+Fraden, J. (1996). Handbook of Modern Sensors. Springer, California.
+Webster, J. (1999). The Measurement, Instrumentation and Sensors Handbook. IEEE Press, America.
+Tirtamiharja. (1996). Elektronik Digital. Andi Offset, Yogyakarta.
+Milman dan Halkias. (1993). Elektronika Terpadu. Jakarta, Erlangga.
+Wardhana, L. (2006). Belajar Sendiri Mikrokontroler AVR Seri ATMega8535. ANDI, Yogyakarta.
+
+Semoga artikel jurnal ini bermanfaat untuk publikasi Anda! Jangan ragu bertanya jika butuh bagian tambahan.`;
+
+export function getSampleAiText(
+  template: 'makalah' | 'skripsi' | 'jurnal' | 'kustom' | undefined
+): string {
+  return template === 'jurnal' ? SAMPLE_JOURNAL_RAW_TEXT : SAMPLE_AI_RAW_TEXT;
+}
+
+export function getSampleFileName(
+  template: 'makalah' | 'skripsi' | 'jurnal' | 'kustom' | undefined
+): string {
+  return template === 'jurnal' ? 'JURNAL_SENSOR_DIGITAL.docx' : 'MAKALAH_SAMPLE_AI.docx';
+}

@@ -11,6 +11,11 @@ describe('buildAiPromptTemplate', () => {
     expect(template).toContain('DAFTAR PUSTAKA');
     expect(template).toContain('jangan dibubuhi kalimat pembuka');
     expect(template).toContain('[TOPIK]');
-    expect(template).toContain('[JENIS DOKUMEN]');
+  });
+
+  it('menyebut jenis dokumen secara eksplisit per varian', () => {
+    expect(buildAiPromptTemplate('makalah')).toContain('penulis makalah');
+    expect(buildAiPromptTemplate('skripsi')).toContain('penulis skripsi');
+    expect(buildAiPromptTemplate('jurnal')).toContain('penulis artikel jurnal');
   });
 });
