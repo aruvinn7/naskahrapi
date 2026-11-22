@@ -47,11 +47,11 @@ const NON_CITATION_LEADS = new Set([
   'kutipan'
 ]);
 
-/** Kata pertama nama sebagai komponen kunci: "Sari dkk." → "sari". */
+/** Kata pertama nama sebagai komponen kunci: "Sari dkk." → "sari", "sumber:" → "sumber". */
 function firstWordKey(name: string): string {
   const cleaned = name.replace(/\s+(?:dkk\.|et\s+al\.)\s*$/i, '').trim();
   const first = cleaned.split(/\s+/)[0] ?? '';
-  return first.replace(/[.,]+$/, '').toLowerCase();
+  return first.replace(/[.,:;]+$/, '').toLowerCase();
 }
 
 /**
@@ -81,9 +81,10 @@ export function extractCitationRefs(content: string): CitationRef[] {
     }
   }
 
-  // 2) Naratif — Nama (Tahun), nama dimulai huruf kapital.
+  // 2) Naratif — Nama (Tahun), satu atau beberapa penulis dipisah dan/&/and
+  //    ("Sari dan Wibowo (2022)"); kata pertama menjadi komponen kunci.
   const narrativeRegex =
-    /\b([A-Z][a-zA-Z]+(?:\s+(?:dkk\.|et\s+al\.))?)\s*\(((?:19|20)\d{2}[a-z]?)\)/g;
+    /\b([A-Z][a-zA-Z]+(?:\s+(?:dkk\.|et\s+al\.))?(?:(?:\s+dan|\s*&|\s+and)\s+[A-Z][a-zA-Z]+)*)\s*\(((?:19|20)\d{2}[a-z]?)\)/g;
   while ((match = narrativeRegex.exec(content)) !== null) {
     push(match[1].trim(), match[2], `${match[1].trim()}, ${match[2]}`);
   }
@@ -164,8 +165,11 @@ export function analyzeCitations(sections: DocumentSection[]): CitationAnalysis 
   });
 
   // Entri pustaka yang tidak pernah disitasi (hanya bila ada pustaka).
+  // Gaya IEEE murni tidak dicocokkan angka ↔ urutan entri — jangan melapor
+  // "semua entri tak terpakai" untuk gaya yang tidak memakai nama-tahun.
+  const isIeeeOnly = refs.length === 0 && ieeeCitations.length > 0;
   const unusedReferences =
-    bibBlocks.length > 0
+    bibBlocks.length > 0 && !isIeeeOnly
       ? bibBlocks
           .map((b) => ({
             key: extractBibliographyKey(b.formattedContent),

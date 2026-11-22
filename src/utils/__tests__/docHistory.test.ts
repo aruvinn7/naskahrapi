@@ -148,6 +148,15 @@ describe('saveHistory — fallback kuota', () => {
     vi.stubGlobal('localStorage', storage);
     expect(saveHistory([makeEntry('a', 'Isi panjang sekali.')])).toBe(false);
   });
+
+  it('menghapus entri terakhir: riwayat kosong ikut terhapus dari storage', () => {
+    const storage = fakeStorage();
+    vi.stubGlobal('localStorage', storage);
+    saveHistory([makeEntry('a', 'A.')]);
+    expect(saveHistory([])).toBe(true);
+    expect(globalThis.localStorage.getItem('skripsi-rapi-history-v1')).toBeNull();
+    expect(loadHistory()).toEqual([]);
+  });
 });
 
 describe('removeHistoryEntry & loadHistory', () => {

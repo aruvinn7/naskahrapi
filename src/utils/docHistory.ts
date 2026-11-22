@@ -65,6 +65,16 @@ function stripImageEntries(entries: HistoryEntry[]): HistoryEntry[] {
 }
 
 export function saveHistory(entries: HistoryEntry[]): boolean {
+  // Riwayat kosong = user menghapus semua entri — hapus key dari storage agar
+  // entri terhapus tidak "bangkit" kembali saat reload (bukan kondisi gagal).
+  if (entries.length === 0) {
+    try {
+      globalThis.localStorage.removeItem(HISTORY_KEY);
+      return true;
+    } catch {
+      return false;
+    }
+  }
   // Urutan preferensi: pertahankan semua entri (plain → gambar di-strip),
   // baru buang entri terlama bertahap bila kuota tetap penuh.
   const variants: HistoryEntry[][] = [];

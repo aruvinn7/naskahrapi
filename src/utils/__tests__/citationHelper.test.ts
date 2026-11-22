@@ -80,4 +80,24 @@ describe('analyzeCitations', () => {
     ];
     expect(analyzeCitations(doc).missingFromBibliography).toContain('Sari, 2023a');
   });
+  it('sitasi naratif dua penulis memakai nama pertama (Sari dan Wibowo)', () => {
+    const doc = [
+      section('bab', 'BAB I', [block('paragraph', 'Sari dan Wibowo (2022) menemukan hal serupa.')]),
+      bibSection(['Sari, A., & Wibowo, C. (2022). Judul.'])
+    ];
+    const result = analyzeCitations(doc);
+    expect(result.missingFromBibliography).toEqual([]);
+    expect(result.unusedReferences).toEqual([]);
+  });
+  it('catatan sumber gambar/tabel (sumber: BPS, 2020) bukan sitasi', () => {
+    expect(extractCitationRefs('(sumber: BPS, 2020)')).toEqual([]);
+    expect(extractCitationRefs('(Sumber: BPS, 2020)')).toEqual([]);
+  });
+  it('dokumen gaya IEEE murni tidak melaporkan entri tak terpakai', () => {
+    const doc = [
+      section('bab', 'BAB I', [block('paragraph', 'Model [1] dan [2] terbukti.')]),
+      bibSection(['[1] Prasetyo, A. (2023). Metodologi.', '[2] Sari, B. (2022). Ukuran.'])
+    ];
+    expect(analyzeCitations(doc).unusedReferences).toEqual([]);
+  });
 });
