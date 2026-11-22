@@ -942,9 +942,9 @@ export function buildDocxDocument(
   }
 
   return new Document({
-    creator: 'SkripsiRapi',
+    creator: 'NaskahRapi',
     title: docData.title,
-    description: 'Dokumen akademik yang diformat dengan SkripsiRapi',
+    description: 'Dokumen akademik yang diformat dengan NaskahRapi',
     features: { updateFields: true },
     ...(pageNumbers ? { pageNumbers } : {}),
     styles: {

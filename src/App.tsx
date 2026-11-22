@@ -838,7 +838,7 @@ export function App() {
           >
             <Menu className="w-4 h-4" aria-hidden />
           </button>
-          <span className="text-sm font-bold text-slate-800">SkripsiRapi</span>
+          <span className="text-sm font-bold text-slate-800">NaskahRapi</span>
           <span className="text-[10px] text-slate-400">Standar Akademik RI</span>
         </div>
         {activePage === 'beranda' && (

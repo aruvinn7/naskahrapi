@@ -70,7 +70,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           </span>
           <span className="flex flex-col min-w-0 text-left">
             <span className="text-sm font-bold leading-tight tracking-tight">
-              Skripsi<span className="text-teal-400">Rapi</span>
+              Naskah<span className="text-teal-400">Rapi</span>
             </span>
             <span className="text-[11px] leading-tight text-slate-400 truncate">
               Standar Akademik RI

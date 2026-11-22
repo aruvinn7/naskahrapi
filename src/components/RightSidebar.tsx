@@ -326,7 +326,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'skripsira-preset.json';
+    anchor.download = 'naskahrapi-preset.json';
     anchor.click();
     URL.revokeObjectURL(url);
   };
