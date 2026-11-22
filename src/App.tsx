@@ -62,6 +62,7 @@ const DEFAULT_CONFIG: DocumentConfig = {
   headingRules: DEFAULT_HEADING_RULES,
   pageSetup: DEFAULT_PAGE_SETUP,
   coverLayout: DEFAULT_COVER_LAYOUT,
+  journal: { name: '', volumeInfo: '', issn: '' },
   tableStyle: DEFAULT_TABLE_STYLE,
   rules: {
     margin: true,
@@ -120,6 +121,11 @@ export function sanitizeConfig(raw: Partial<DocumentConfig> | undefined): Docume
     },
     pageSetup: { ...DEFAULT_CONFIG.pageSetup, ...(raw.pageSetup || {}) },
     coverLayout: { ...DEFAULT_CONFIG.coverLayout, ...(raw.coverLayout || {}) },
+    journal: {
+      name: (raw.journal?.name ?? '').trim(),
+      volumeInfo: (raw.journal?.volumeInfo ?? '').trim(),
+      issn: (raw.journal?.issn ?? '').trim()
+    },
     tableStyle: {
       ...DEFAULT_CONFIG.tableStyle,
       ...(raw.tableStyle || {}),
@@ -901,6 +907,7 @@ export function App() {
                 <A4PaperPreview
                   doc={doc}
                   config={config}
+                  journal={config.journal}
                   zoom={zoom}
                   setZoom={setZoom}
                   currentPage={currentPage}

@@ -24,6 +24,8 @@ import { parseInlineSegments, splitChapterHeading } from '../utils/inlineFormat'
 import { LIST_INDENT_CM, buildListLabels, stripListMarker } from '../utils/listNumbering';
 import { MEMBER_COLUMN_GAP_MM, buildCoverLines, coverLogoBox, CoverLine } from '../utils/cover';
 import { formatChapterHeading, formatSubHeadingNumber, paperDimensions, splitHeadingNumberTitle } from '../utils/formatEngine';
+import { buildJournalFront, JournalFront } from '../utils/journalFormat';
+import { JournalConfig } from '../types/document';
 
 interface A4PaperPreviewProps {
   doc: ParsedDocument;
@@ -48,6 +50,8 @@ interface A4PaperPreviewProps {
     col: number
   ) => void;
   onUpdateTableCell?: (blockId: string, row: number, col: number, value: string) => void;
+  /** Data header jurnal — hanya dipakai saat template 'jurnal'. */
+  journal?: JournalConfig;
 }
 
 const PX_PER_MM = 96 / 25.4;
@@ -69,7 +73,8 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
   onInsertImageAt,
   onInsertTable,
   onTableOp,
-  onUpdateTableCell
+  onUpdateTableCell,
+  journal
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -99,6 +104,7 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
   const pageInputRef = useRef<HTMLInputElement>(null);
 
   const effective = useMemo(() => getEffectiveConfig(config), [config]);
+  const isJournal = effective.template === 'jurnal';
   const tocEntries = useMemo(() => buildTocEntries(doc), [doc]);
   const listLabels = useMemo(() => {
     const merged = new Map<string, { label: string; level: number }>();
@@ -108,8 +114,12 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
     return merged;
   }, [doc]);
   const baseItems = useMemo(
-    () => buildFlowItems(doc, tocEntries, effective.pageSetup.newPagePerBab),
-    [doc, tocEntries, effective.pageSetup.newPagePerBab]
+    () => buildFlowItems(doc, tocEntries, effective.pageSetup.newPagePerBab, isJournal),
+    [doc, tocEntries, effective.pageSetup.newPagePerBab, isJournal]
+  );
+  const journalFront: JournalFront | null = useMemo(
+    () => (isJournal ? buildJournalFront(doc) : null),
+    [doc, isJournal]
   );
 
   const paper = paperDimensions(
@@ -153,6 +163,12 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
     [items]
   );
 
+  // Jurnal dua kolom: satu halaman memuat dua kolom — kapasitas paginasi
+  // dikali dua (tinggi item diukur pada lebar satu kolom).
+  const pageCapacityPx = capacityPx * (isJournal ? 2 : 1);
+  // Lebar satu kolom untuk pengukuran tinggi (kolom sempit = paragraf lebih tinggi).
+  const measureWidthMm = isJournal ? Math.max(20, (contentWidthMm - 5) / 2) : contentWidthMm;
+
   const fontStack = cssFontFamily(effective.fontFamily);
 
   // Ukur tinggi tiap blok memakai lebar konten yang sama dengan halaman A4.
@@ -182,8 +198,8 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
   }, [itemSignature, effective, imageTick]);
 
   const pages = useMemo(
-    () => paginate(items, heights, capacityPx),
-    [items, heights, capacityPx]
+    () => paginate(items, heights, pageCapacityPx),
+    [items, heights, pageCapacityPx]
   );
 
   const meta = useMemo(() => computePageMeta(pages, doc.sections), [pages, doc.sections]);
@@ -1158,7 +1174,7 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
           position: 'fixed',
           top: 0,
           left: '-10000px',
-          width: `${contentWidthMm}mm`,
+          width: `${measureWidthMm}mm`,
           fontFamily: fontStack,
           lineHeight: effective.lineSpacing,
           fontSize: `${effective.fontSize.body}pt`,
@@ -1234,7 +1250,110 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
                   className="flex flex-col"
                   style={{ minHeight: '100%' }}
                 >
-                  {pageItems.map((item) => renderItem(item, true))}
+                  {/* Header jurnal di atas setiap halaman: kiri nama+edisi italic,
+                      kanan ISSN — ala PDF Berkala Fisika. */}
+                  {isJournal &&
+                    (journal?.name?.trim() ||
+                      journal?.volumeInfo?.trim() ||
+                      journal?.issn?.trim()) && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        marginBottom: '0.4cm',
+                        fontSize: '10pt',
+                        lineHeight: 1.4
+                      }}
+                    >
+                      <div style={{ fontStyle: 'italic' }}>
+                        {journal?.name?.trim() && <div style={{ fontWeight: 700 }}>{journal.name}</div>}
+                        {journal?.volumeInfo?.trim() && <div>{journal.volumeInfo}</div>}
+                      </div>
+                      {journal?.issn?.trim() && (
+                        <div style={{ fontStyle: 'italic', fontWeight: 700 }}>{journal.issn}</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Front matter artikel: judul + penulis + abstrak — satu
+                      kolom penuh, hanya di halaman pertama. */}
+                  {isJournal && pageIndex === 0 && journalFront && (
+                    <div style={{ marginBottom: '0.4cm' }}>
+                      <div
+                        style={{
+                          textAlign: 'center',
+                          fontWeight: 700,
+                          fontSize: '14pt',
+                          marginBottom: '0.3cm'
+                        }}
+                      >
+                        {journalFront.title}
+                      </div>
+                      {journalFront.author && (
+                        <div
+                          style={{
+                            textAlign: 'center',
+                            fontStyle: 'italic',
+                            fontWeight: 700,
+                            fontSize: '11pt'
+                          }}
+                        >
+                          {journalFront.author}
+                        </div>
+                      )}
+                      {journalFront.affiliation && (
+                        <div
+                          style={{
+                            textAlign: 'center',
+                            fontStyle: 'italic',
+                            fontSize: '10pt',
+                            marginBottom: '0.4cm'
+                          }}
+                        >
+                          {journalFront.affiliation}
+                        </div>
+                      )}
+                      {journalFront.abstracts.map((abs, index) => (
+                        <div key={`${abs.heading}-${index}`} style={{ marginBottom: '0.35cm' }}>
+                          <div
+                            style={{
+                              textAlign: 'center',
+                              fontWeight: 700,
+                              fontSize: '11pt',
+                              marginBottom: '0.15cm'
+                            }}
+                          >
+                            {abs.heading}
+                          </div>
+                          {abs.body && (
+                            <div
+                              style={{
+                                fontStyle: 'italic',
+                                textAlign: 'justify',
+                                fontSize: '10pt',
+                                lineHeight: 1.3
+                              }}
+                            >
+                              {abs.body}
+                            </div>
+                          )}
+                          {abs.keywords && (
+                            <div style={{ fontStyle: 'italic', fontSize: '10pt', marginTop: '0.15cm' }}>
+                              {abs.heading.toLowerCase() === 'abstract' ? 'Keyword' : 'Kata kunci'} :{' '}
+                              {abs.keywords}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {isJournal ? (
+                    <div className="journal-columns">{pageItems.map((item) => renderItem(item, true))}</div>
+                  ) : (
+                    pageItems.map((item) => renderItem(item, true))
+                  )}
                 </div>
 
                 {effective.pageNumbers && pageLabel.label && !isCover &&

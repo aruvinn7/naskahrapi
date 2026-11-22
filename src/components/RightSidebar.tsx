@@ -1073,6 +1073,40 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
               </label>
             </div>
           </div>
+
+          {/* Header jurnal (hanya template jurnal): nama jurnal, edisi, ISSN */}
+          {config.template === 'jurnal' && (
+            <div>
+              <label className={labelClass}>Header jurnal</label>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                Tercetak di atas setiap halaman: kiri nama jurnal &amp; edisi (italic), kanan ISSN.
+                Kosongkan yang tidak dipakai.
+              </p>
+              <div className="mt-2 space-y-1.5">
+                {([
+                  { field: 'name' as const, label: 'Nama jurnal', placeholder: 'Berkala Fisika' },
+                  { field: 'volumeInfo' as const, label: 'Volume / No / Tahun / Halaman', placeholder: 'Vol 11, No.4, Oktober 2008 hal 147-152' },
+                  { field: 'issn' as const, label: 'ISSN', placeholder: 'ISSN : 1410 - 9662' }
+                ]).map(({ field, label, placeholder }) => (
+                  <label key={field} className="block">
+                    <span className="text-[10px] text-slate-500 font-medium">{label}</span>
+                    <input
+                      type="text"
+                      value={config.journal?.[field] ?? ''}
+                      onChange={(event) =>
+                        updateConfig({
+                          journal: { ...(config.journal ?? { name: '', volumeInfo: '', issn: '' }), [field]: event.target.value }
+                        })
+                      }
+                      placeholder={placeholder}
+                      className="mt-0.5 w-full rounded-lg border border-slate-300 px-3 py-2 text-[11px] focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      aria-label={label}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

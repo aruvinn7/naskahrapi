@@ -97,6 +97,12 @@
   text-indent: -1.27cm;
 }
 
+/* Dua kolom artikel jurnal (pratinjau & cetak). */
+.journal-columns {
+  column-count: 2;
+  column-gap: 0.5cm;
+}
+
 /* First line paragraph indent */
 .first-line-indent {
   text-indent: 1cm;

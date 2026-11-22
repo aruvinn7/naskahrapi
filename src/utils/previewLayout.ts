@@ -1,5 +1,6 @@
 import { DocumentBlock, DocumentSection, ParsedDocument } from '../types/document';
 import { coverHasContent } from './cover';
+import { stripBabPrefix, stripSectionNumber } from './journalFormat';
 
 export type PagePhase = 'cover' | 'front' | 'body';
 
@@ -152,12 +153,13 @@ export function buildTocEntries(doc: ParsedDocument): TocEntry[] {
 export function buildFlowItems(
   doc: ParsedDocument,
   tocEntries: TocEntry[],
-  newPagePerBab: boolean = true
+  newPagePerBab: boolean = true,
+  isJournal: boolean = false
 ): FlowItem[] {
   const items: FlowItem[] = [];
 
   const coverSection = doc.sections.find((section) => section.type === 'cover');
-  const useStructuredCover = Boolean(doc.cover?.enabled && coverHasContent(doc.cover));
+  const useStructuredCover = !isJournal && Boolean(doc.cover?.enabled && coverHasContent(doc.cover));
 
   if (useStructuredCover) {
     items.push({
@@ -171,6 +173,10 @@ export function buildFlowItems(
   }
 
   doc.sections.forEach((section, sectionIndex) => {
+    // Template jurnal: front matter makalah (cover, kata pengantar, daftar
+    // isi/tabel/gambar, abstrak) tidak ikut flow — kontennya tetap ada.
+    if (isJournal && (section.type === 'cover' || isFrontMatterType(section.type))) return;
+
     if (section.type === 'cover') {
       // Cover terstruktur sudah dirender dari data cover, bukan dari blok teks.
       if (useStructuredCover) return;
@@ -226,7 +232,7 @@ export function buildFlowItems(
       sectionId: section.id,
       sectionType: section.type,
       kind: 'section-heading',
-      text: section.title
+      text: isJournal ? stripBabPrefix(section.title) : section.title
     });
 
     if (section.type === 'daftar_isi') {
@@ -279,13 +285,22 @@ export function buildFlowItems(
       // Blok image punya formattedContent kosong — tetap masuk flow agar
       // gambarnya dirender.
       if (!block.formattedContent.trim() && block.type !== 'image' && block.type !== 'table') return;
+      // Jurnal: judul bab & sub-bab tampil tanpa nomor ("BAB I PENDAHULUAN"
+      // → "PENDAHULUAN", "1.1 Latar Belakang" → "Latar Belakang").
+      const displayBlock = isJournal
+        ? block.type === 'heading_1'
+          ? { ...block, formattedContent: stripBabPrefix(block.formattedContent) }
+          : block.type === 'heading_2' || block.type === 'heading_3'
+            ? { ...block, formattedContent: stripSectionNumber(block.formattedContent) }
+            : block
+        : block;
       add({
         id: `block-${block.id}`,
         sectionId: section.id,
         sectionType: section.type,
         kind: 'block',
-        text: block.formattedContent,
-        block,
+        text: displayBlock.formattedContent,
+        block: displayBlock,
         keepWithNext: block.type === 'table_caption'
       });
     });

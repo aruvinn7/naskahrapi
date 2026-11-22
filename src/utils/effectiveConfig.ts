@@ -22,6 +22,7 @@ export interface EffectiveConfig {
   headingRules: DocumentConfig['headingRules'];
   pageSetup: DocumentConfig['pageSetup'];
   coverLayout: DocumentConfig['coverLayout'];
+  journal: DocumentConfig['journal'];
   hangingIndent: number;
   tableStyle: DocumentConfig['tableStyle'];
   numbering: boolean;
@@ -69,6 +70,7 @@ export function getEffectiveConfig(config: DocumentConfig): EffectiveConfig {
     headingRules: headingSpacing,
     pageSetup: config.pageSetup ?? DEFAULT_PAGE_SETUP,
     coverLayout: config.coverLayout ?? DEFAULT_COVER_LAYOUT,
+    journal: config.journal ?? { name: '', volumeInfo: '', issn: '' },
     hangingIndent: isRuleEnabled(config, 'hanging_indent') ? config.hangingIndent ?? 1.27 : 0,
     tableStyle: isRuleEnabled(config, 'table_format')
       ? config.tableStyle ?? DEFAULT_TABLE_STYLE

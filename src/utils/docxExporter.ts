@@ -22,6 +22,7 @@ import {
   Tab,
   TabStopType,
   LeaderType,
+  SectionType,
   TextRun,
   WidthType
 } from 'docx';
@@ -44,6 +45,7 @@ import {
   CoverLine
 } from './cover';
 import { formatChapterHeading, formatSubHeadingNumber, paperDimensions, splitHeadingNumberTitle } from './formatEngine';
+import { buildJournalFront, stripBabPrefix, stripSectionNumber } from './journalFormat';
 import {
   findCoverHeadingBlock,
   findCoverTitleBlock,
@@ -815,6 +817,257 @@ function furnitureFooter(
   return undefined;
 }
 
+/** Header jurnal: kiri nama (italic bold) + edisi (italic), kanan ISSN (italic bold). */
+function journalHeader(effective: EffectiveConfig, typography: Typography): Header | undefined {
+  const journal = effective.journal;
+  const name = journal?.name?.trim() ?? '';
+  const volumeInfo = journal?.volumeInfo?.trim() ?? '';
+  const issn = journal?.issn?.trim() ?? '';
+  if (!name && !volumeInfo && !issn) return undefined;
+
+  const children: ParagraphChild[] = [];
+  if (name) {
+    children.push(
+      new TextRun({
+        text: name,
+        italics: true,
+        bold: true,
+        font: typography.font,
+        size: typography.captionSize,
+        color: '000000'
+      })
+    );
+  }
+  if (volumeInfo) {
+    children.push(
+      new TextRun({
+        text: volumeInfo,
+        italics: true,
+        font: typography.font,
+        size: typography.captionSize,
+        color: '000000',
+        break: children.length ? 1 : undefined
+      })
+    );
+  }
+  if (issn) {
+    children.push(
+      new TextRun({
+        children: [new Tab(), issn],
+        italics: true,
+        bold: true,
+        font: typography.font,
+        size: typography.captionSize,
+        color: '000000'
+      })
+    );
+  }
+
+  return new Header({
+    children: [
+      new Paragraph({
+        tabStops: [{ type: TabStopType.RIGHT, position: 9350 }],
+        children
+      })
+    ]
+  });
+}
+
+/** Entri pustaka jurnal: bernomor "1). " tanpa indentasi menggantung. */
+function journalBibliographyParagraph(text: string, index: number, typography: Typography): Paragraph {
+  return new Paragraph({
+    alignment: typography.alignment,
+    spacing: { after: 60, line: typography.line },
+    children: [
+      new TextRun({
+        text: `${index + 1}). `,
+        font: typography.font,
+        size: typography.bodySize,
+        color: '000000'
+      }),
+      ...inlineRuns(text, typography.font, typography.bodySize)
+    ]
+  });
+}
+
+function journalTransformBlock(block: DocumentBlock): DocumentBlock {
+  if (block.type === 'heading_1') {
+    return { ...block, formattedContent: stripBabPrefix(block.formattedContent) };
+  }
+  if (block.type === 'heading_2' || block.type === 'heading_3') {
+    return { ...block, formattedContent: stripSectionNumber(block.formattedContent) };
+  }
+  return block;
+}
+
+/**
+ * Dokumen jurnal: section 1 = front matter artikel (judul, penulis, abstrak)
+ * satu kolom; section 2 = isi artikel dua kolom (CONTINUOUS) + pustaka
+ * bernomor. Header jurnal di kedua section.
+ */
+function buildJournalDocument(
+  docData: ParsedDocument,
+  pageNumbers: PageNumberEstimator | undefined,
+  effective: EffectiveConfig,
+  typography: Typography
+): Document {
+  const showNumbers = effective.pageNumbers;
+  const front = buildJournalFront(docData);
+  const headingLabel = (heading: string) => (heading.toLowerCase() === 'abstract' ? 'Keyword' : 'Kata kunci');
+
+  const frontChildren: Paragraph[] = [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 160, line: typography.line },
+      children: inlineRuns(front.title, typography.font, typography.titleSize, {
+        bold: true,
+        color: '000000'
+      })
+    })
+  ];
+  if (front.author) {
+    frontChildren.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 60, line: typography.line },
+        children: inlineRuns(front.author, typography.font, typography.bodySize, {
+          bold: true,
+          italics: true,
+          color: '000000'
+        })
+      })
+    );
+  }
+  if (front.affiliation) {
+    frontChildren.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200, line: typography.line },
+        children: inlineRuns(front.affiliation, typography.font, typography.captionSize, {
+          italics: true,
+          color: '000000'
+        })
+      })
+    );
+  }
+  front.abstracts.forEach((abs) => {
+    frontChildren.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 120, after: 80, line: typography.line },
+        children: inlineRuns(abs.heading, typography.font, typography.bodySize, {
+          bold: true,
+          color: '000000'
+        })
+      })
+    );
+    if (abs.body) {
+      frontChildren.push(
+        new Paragraph({
+          alignment: AlignmentType.JUSTIFIED,
+          spacing: { after: 80, line: typography.line },
+          children: inlineRuns(abs.body, typography.font, typography.captionSize, {
+            italics: true,
+            color: '000000'
+          })
+        })
+      );
+    }
+    if (abs.keywords) {
+      frontChildren.push(
+        new Paragraph({
+          alignment: AlignmentType.JUSTIFIED,
+          spacing: { after: 120, line: typography.line },
+          children: inlineRuns(`${headingLabel(abs.heading)} : ${abs.keywords}`, typography.font, typography.captionSize, {
+            italics: true,
+            color: '000000'
+          })
+        })
+      );
+    }
+  });
+
+  const bodySections = docData.sections.filter(
+    (section) => !isFrontMatterType(section.type)
+  );
+  const bodyChildren: FileChild[] = [];
+  bodySections.forEach((section) => {
+    bodyChildren.push(headingParagraph(stripBabPrefix(section.title), 1, typography));
+
+    if (section.type === 'daftar_pustaka') {
+      blocksWithoutDuplicateTitle(section).forEach((block, index) => {
+        if (!block.formattedContent.trim()) return;
+        bodyChildren.push(journalBibliographyParagraph(block.formattedContent.trim(), index, typography));
+      });
+      return;
+    }
+
+    const listLabels = buildListLabels(section.blocks);
+    blocksWithoutDuplicateTitle(section).forEach((block) => {
+      if (!block.formattedContent.trim() && block.type !== 'image' && block.type !== 'table') return;
+      const transformed = journalTransformBlock(block);
+      bodyChildren.push(
+        transformed.type === 'table'
+          ? tableBlock(transformed, typography)
+          : blockParagraph(transformed, typography, listLabels)
+      );
+    });
+  });
+
+  const header = journalHeader(effective, typography);
+  const footer = showNumbers ? furnitureFooter(typography, effective) : undefined;
+  const pageProps = { size: pageSize(effective), margin: pageMargins(effective) };
+
+  return new Document({
+    creator: 'NaskahRapi',
+    title: docData.title,
+    description: 'Dokumen akademik yang diformat dengan NaskahRapi',
+    features: { updateFields: true },
+    ...(pageNumbers ? { pageNumbers } : {}),
+    styles: {
+      default: {
+        document: {
+          run: { font: typography.font, size: typography.bodySize }
+        }
+      },
+      paragraphStyles: [1, 2, 3].map((level) => ({
+        id: `TOC${level}`,
+        name: `toc ${level}`,
+        basedOn: 'Normal',
+        next: 'Normal',
+        quickFormat: true,
+        run: {
+          font: typography.font,
+          size: level === 1 ? typography.bodySize : typography.captionSize
+        },
+        paragraph: {
+          spacing: { line: typography.line, after: level === 1 ? 120 : 40 }
+        }
+      }))
+    },
+    sections: [
+      {
+        properties: {
+          page: { ...pageProps, pageNumbers: { start: 1, formatType: NumberFormat.DECIMAL } }
+        },
+        headers: header ? { default: header } : undefined,
+        footers: footer ? { default: footer } : undefined,
+        children: frontChildren.length > 0 ? frontChildren : [new Paragraph('')]
+      },
+      {
+        properties: {
+          type: SectionType.CONTINUOUS,
+          page: pageProps,
+          column: { count: 2, space: cmToTwip(0.5) }
+        },
+        headers: header ? { default: header } : undefined,
+        footers: footer ? { default: footer } : undefined,
+        children: bodyChildren.length > 0 ? bodyChildren : [new Paragraph('')]
+      }
+    ]
+  });
+}
+
 export function buildDocxDocument(
   docData: ParsedDocument,
   config: DocumentConfig,
@@ -823,6 +1076,11 @@ export function buildDocxDocument(
   const effective = getEffectiveConfig(config);
   const typography = buildTypography(effective);
   const showPageNumbers = effective.pageNumbers;
+
+  // Template jurnal: jalur terpisah — front matter artikel 1 kolom + isi dua kolom.
+  if (effective.template === 'jurnal') {
+    return buildJournalDocument(docData, pageNumbers, effective, typography);
+  }
 
   const firstBodyIndex = docData.sections.findIndex(
     (section) => !isFrontMatterType(section.type)

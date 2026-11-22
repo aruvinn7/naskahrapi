@@ -51,6 +51,16 @@ export interface CoverLayout {
   variant: CoverLayoutVariant;
 }
 
+/** Header jurnal di atas tiap halaman (template jurnal; field boleh kosong). */
+export interface JournalConfig {
+  /** Nama jurnal, mis. "Berkala Fisika" (baris 1 kiri, italic bold). */
+  name: string;
+  /** Info edisi bebas, mis. "Vol 11, No.4, Oktober 2008 hal 147-152" (baris 2 kiri, italic). */
+  volumeInfo: string;
+  /** ISSN di kanan atas, mis. "ISSN : 1410 - 9662" (italic bold). */
+  issn: string;
+}
+
 export interface TableStyle {
   /** Ketebalan garis tabel dalam pt (0.5 = tipis, 1 = sedang, 1.5 = tebal). */
   borderWidth: number;
@@ -85,6 +95,8 @@ export interface DocumentConfig {
   headingRules: HeadingRules;
   pageSetup: PageSetup;
   coverLayout: CoverLayout;
+  /** Data header jurnal — dipakai hanya saat template 'jurnal'. */
+  journal?: JournalConfig;
   rules: Record<string, boolean>;
 }
 
