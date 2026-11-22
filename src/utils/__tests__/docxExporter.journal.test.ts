@@ -6,6 +6,10 @@ import { applyTemplatePreset } from '../templatePresets';
 import { DEFAULT_CONFIG_MAKALAH } from './helpers';
 import { DocumentConfig, DocumentBlock, DocumentSection, ParsedDocument } from '../../types/document';
 
+// PNG 1x1 transparan (base64)
+const TINY_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
 function journalConfig(): DocumentConfig {
   const config = applyTemplatePreset(DEFAULT_CONFIG_MAKALAH, 'jurnal');
   return {
@@ -100,6 +104,35 @@ describe('ekspor DOCX template jurnal', () => {
     expect(document).toContain('1). ');
     expect(document).toContain('2). ');
     expect(document).not.toContain('w:hanging');
+  });
+
+  it('caption gambar memakai gaya caption (label: keterangan, center)', async () => {
+    const doc = journalDoc();
+    doc.sections[1].blocks.push({
+      id: 'blk-cap',
+      type: 'figure_caption',
+      rawContent: 'Gambar 1.1 Skema aliran',
+      formattedContent: 'Gambar 1.1 Skema aliran'
+    });
+    const { document } = await packXml(doc, journalConfig());
+    expect(document).toContain('Gambar 1.1');
+    expect(document).toContain(': Skema aliran');
+  });
+
+  it('gambar dibatasi lebar satu kolom (tidak overflow)', async () => {
+    const doc = journalDoc();
+    doc.sections[1].blocks.push({
+      id: 'blk-img',
+      type: 'image',
+      rawContent: '',
+      formattedContent: '',
+      meta: { dataUrl: TINY_PNG, width: 400, height: 300 }
+    });
+    const { document } = await packXml(doc, journalConfig());
+    const extents = Array.from(document.matchAll(/<wp:extent cx="(\d+)"/g)).map((m) => Number(m[1]));
+    expect(extents.length).toBeGreaterThan(0);
+    // Lebar kolom jurnal (A4, margin 2,5 cm, gap 0,5 cm) ≈ 292 px ≈ 2,78 jt EMU.
+    extents.forEach((cx) => expect(cx).toBeLessThan(3_000_000));
   });
 
   it('header jurnal kosong → tanpa teks header, tidak crash', async () => {

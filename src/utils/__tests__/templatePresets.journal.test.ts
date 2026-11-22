@@ -31,4 +31,19 @@ describe('preset template jurnal ala PDF', () => {
   it('field header jurnal tersedia dengan default kosong', () => {
     expect(config.journal).toEqual({ name: '', volumeInfo: '', issn: '' });
   });
+
+  it('re-apply template yang sama tidak mereset penyesuaian halaman/heading', () => {
+    const customized = {
+      ...DEFAULT_CONFIG_MAKALAH,
+      pageSetup: { ...DEFAULT_CONFIG_MAKALAH.pageSetup, orientation: 'landscape' as const },
+      headingRules: { ...DEFAULT_CONFIG_MAKALAH.headingRules, h1: { ...DEFAULT_CONFIG_MAKALAH.headingRules.h1, italic: true } }
+    };
+    const reapplied = applyTemplatePreset(customized, 'makalah');
+    expect(reapplied.pageSetup.orientation).toBe('landscape');
+    expect(reapplied.headingRules.h1.italic).toBe(true);
+    // Perganti template nyata tetap mereset ke baku.
+    const switched = applyTemplatePreset(config, 'makalah');
+    expect(switched.pageSetup.orientation).toBe('portrait');
+    expect(switched.headingRules.numberingFormat).toBe('bab-roman');
+  });
 });

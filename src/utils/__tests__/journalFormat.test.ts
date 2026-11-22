@@ -69,6 +69,13 @@ describe('stripBabPrefix', () => {
     expect(stripBabPrefix('Pendahuluan')).toBe('Pendahuluan');
     expect(stripBabPrefix('Hasil dan Pembahasan')).toBe('Hasil dan Pembahasan');
   });
+  it('baris kata kunci plural "Keywords:" terpisah utuh', () => {
+    const doc = makeDoc();
+    doc.sections[0].blocks[1].formattedContent = 'Keywords: Displacement, digital, serial';
+    const front = buildJournalFront(doc);
+    expect(front.abstracts[0].keywords).toBe('Displacement, digital, serial');
+    expect(front.abstracts[0].body).not.toContain('Keywords');
+  });
 });
 
 describe('buildJournalFront', () => {

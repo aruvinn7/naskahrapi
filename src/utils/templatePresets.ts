@@ -73,6 +73,9 @@ export function applyTemplatePreset(
   }
 
   const preset = TEMPLATE_PRESETS[template];
+  // Halaman & heading baku hanya dipaksa saat benar-benar berganti template —
+  // re-apply template yang sama tidak boleh menghapus penyesuaian di tab Format.
+  const isSwitching = config.template !== template;
   return {
     ...config,
     template,
@@ -80,8 +83,10 @@ export function applyTemplatePreset(
     lineSpacing: preset.lineSpacing,
     firstLineIndent: preset.firstLineIndent,
     fontSize: { ...preset.fontSize },
-    pageSetup: { ...TEMPLATE_PAGE_SETUP[template], headerText: template === 'jurnal' ? '' : config.pageSetup.headerText },
-    headingRules: { ...TEMPLATE_HEADING_RULES[template] },
+    pageSetup: isSwitching
+      ? { ...TEMPLATE_PAGE_SETUP[template], headerText: template === 'jurnal' ? '' : config.pageSetup.headerText }
+      : config.pageSetup,
+    headingRules: isSwitching ? { ...TEMPLATE_HEADING_RULES[template] } : config.headingRules,
     journal: template === 'jurnal' ? (config.journal ?? EMPTY_JOURNAL) : config.journal
   };
 }

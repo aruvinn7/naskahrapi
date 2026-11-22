@@ -35,7 +35,7 @@ export interface JournalFront {
   abstracts: JournalAbstract[];
 }
 
-const KEYWORDS_RE = /^(keyword|kata\s*kunci)\s*[:.]?\s*/i;
+const KEYWORDS_RE = /^(keywords?|kata\s*kunci)\s*[:.]?\s*/i;
 
 /**
  * Front matter artikel jurnal: judul + penulis + afiliasi (dari data cover —

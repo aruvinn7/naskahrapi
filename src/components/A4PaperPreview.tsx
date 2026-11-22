@@ -259,6 +259,12 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
 
   const effectiveZoom = autoFit ? Math.min(zoom, fitPercent) : zoom;
 
+  // Jurnal: teks pratinjau sudah di-strip ("PENDAHULUAN"). Menulis balik teks
+  // yang identik dengan tampilan akan menghapus "BAB I"/"1.1" dari dokumen —
+  // lewati kecuali user benar-benar mengubah isi.
+  const skipDisplayWrite = (item: FlowItem, value: string) =>
+    isJournal && value.trim() === item.text.trim();
+
   const handleZoomIn = () => {
     setAutoFit(false);
     setZoom((previous) => Math.min(150, previous + 5));
@@ -522,7 +528,7 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
             suppressContentEditableWarning
             onBlur={(event) => {
               const value = event.currentTarget.textContent || '';
-              onUpdateBlockContent(blockId, value);
+              if (!skipDisplayWrite(item, value)) onUpdateBlockContent(blockId, value);
               if (isTitle) onUpdateTitle(value);
             }}
             className={canEdit ? editableClass : undefined}
@@ -536,6 +542,7 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
 
     if (item.kind === 'section-heading') {
       const chapter = splitChapterHeading(item.text);
+      const hr = effective.headingRules;
 
       return (
         <div key={item.id} data-flow-item={item.id}>
@@ -550,14 +557,15 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
               const value = lines.length
                 ? lines.map((line) => (line.textContent || '').trim()).filter(Boolean).join(' ')
                 : event.currentTarget.textContent || '';
-              onUpdateSectionTitle(item.sectionId, value);
+              if (!skipDisplayWrite(item, value)) onUpdateSectionTitle(item.sectionId, value);
             }}
             className={canEdit ? editableClass : undefined}
             style={{
               fontSize: `${effective.fontSize.title}pt`,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              textAlign: 'center',
+              fontWeight: hr.h1.bold ? 700 : 400,
+              fontStyle: hr.h1.italic ? 'italic' : 'normal',
+              textTransform: hr.h1.allCaps ? 'uppercase' : 'none',
+              textAlign: hr.h1.alignment,
               lineHeight: 1.5,
               paddingTop: '0.35em',
               paddingBottom: '0.55em'
@@ -612,8 +620,10 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
     if (!block) return null;
 
     const blockId = block.id;
-    const updateBlock = (event: React.FocusEvent<HTMLElement>) =>
-      onUpdateBlockContent(blockId, event.currentTarget.textContent || '');
+    const updateBlock = (event: React.FocusEvent<HTMLElement>) => {
+      const value = event.currentTarget.textContent || '';
+      if (!skipDisplayWrite(item, value)) onUpdateBlockContent(blockId, value);
+    };
 
     if (block.type === 'image') {
       const dataUrl = (block.meta?.dataUrl as string) || '';
@@ -778,7 +788,8 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
             onBlur={(event) => {
               const chapter = splitChapterHeading(item.text);
               if (!chapter) {
-                onUpdateBlockContent(block.id, event.currentTarget.textContent || '');
+                const value = event.currentTarget.textContent || '';
+                if (!skipDisplayWrite(item, value)) onUpdateBlockContent(block.id, value);
                 return;
               }
               // Dua baris judul disatukan kembali menjadi "BAB I PENDAHULUAN".
@@ -788,7 +799,7 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
               const joined = lines.length
                 ? lines.map((line) => (line.textContent || '').trim()).filter(Boolean).join(' ')
                 : (event.currentTarget.textContent || '').trim();
-              onUpdateBlockContent(block.id, joined);
+              if (!skipDisplayWrite(item, joined)) onUpdateBlockContent(block.id, joined);
             }}
             className={canEdit ? editableClass : undefined}
             style={{

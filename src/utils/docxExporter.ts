@@ -990,6 +990,13 @@ function buildJournalDocument(
   const bodySections = docData.sections.filter(
     (section) => !isFrontMatterType(section.type)
   );
+  // Gambar dibatasi lebar satu kolom (bukan lebar halaman) agar tidak
+  // meluber ke kolom sebelah di section dua kolom.
+  const columnGapPx = Math.round(0.5 * (96 / 2.54));
+  const columnTypography: Typography = {
+    ...typography,
+    contentWidthPx: Math.max(120, Math.round((typography.contentWidthPx - columnGapPx) / 2))
+  };
   const bodyChildren: FileChild[] = [];
   bodySections.forEach((section) => {
     bodyChildren.push(headingParagraph(stripBabPrefix(section.title), 1, typography));
@@ -1006,10 +1013,14 @@ function buildJournalDocument(
     blocksWithoutDuplicateTitle(section).forEach((block) => {
       if (!block.formattedContent.trim() && block.type !== 'image' && block.type !== 'table') return;
       const transformed = journalTransformBlock(block);
+      if (transformed.type === 'table_caption' || transformed.type === 'figure_caption') {
+        bodyChildren.push(captionParagraph(transformed, typography));
+        return;
+      }
       bodyChildren.push(
         transformed.type === 'table'
           ? tableBlock(transformed, typography)
-          : blockParagraph(transformed, typography, listLabels)
+          : blockParagraph(transformed, columnTypography, listLabels)
       );
     });
   });
