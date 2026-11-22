@@ -198,8 +198,20 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
   }, [itemSignature, effective, imageTick]);
 
   const pages = useMemo(
-    () => paginate(items, heights, pageCapacityPx),
-    [items, heights, pageCapacityPx]
+    () =>
+      paginate(
+        items,
+        heights,
+        pageCapacityPx,
+        undefined,
+        isJournal
+          ? (pageIndex) =>
+              pageCapacityPx -
+              ((heights['journal-header'] ?? 0) +
+                (pageIndex === 0 ? heights['journal-front'] ?? 0 : 0))
+          : undefined
+      ),
+    [items, heights, pageCapacityPx, isJournal]
   );
 
   const meta = useMemo(() => computePageMeta(pages, doc.sections), [pages, doc.sections]);
@@ -234,6 +246,107 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
   }, [currentPage, meta.totalPages, setCurrentPage]);
 
   const totalPages = meta.totalPages;
+
+  // Furniture jurnal: header tiap halaman + front matter halaman pertama.
+  // Dirender juga di pengukur tinggi agar kapasitas paginasi dikurangi
+  // tinggi keduanya — tanpa ini kolom isi terpotong di tepi kertas.
+  const hasJournalHeader = Boolean(
+    isJournal &&
+      (journal?.name?.trim() || journal?.volumeInfo?.trim() || journal?.issn?.trim())
+  );
+  const journalHeaderNode = hasJournalHeader ? (
+    <div
+      data-flow-item="journal-header"
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: '0.4cm',
+        fontSize: '10pt',
+        lineHeight: 1.4
+      }}
+    >
+      <div style={{ fontStyle: 'italic' }}>
+        {journal?.name?.trim() && <div style={{ fontWeight: 700 }}>{journal.name}</div>}
+        {journal?.volumeInfo?.trim() && <div>{journal.volumeInfo}</div>}
+      </div>
+      {journal?.issn?.trim() && (
+        <div style={{ fontStyle: 'italic', fontWeight: 700 }}>{journal.issn}</div>
+      )}
+    </div>
+  ) : null;
+
+  const journalFrontNode =
+    isJournal && journalFront ? (
+      <div data-flow-item="journal-front" style={{ marginBottom: '0.4cm' }}>
+        <div
+          style={{
+            textAlign: 'center',
+            fontWeight: 700,
+            fontSize: '14pt',
+            marginBottom: '0.3cm'
+          }}
+        >
+          {journalFront.title}
+        </div>
+        {journalFront.author && (
+          <div
+            style={{
+              textAlign: 'center',
+              fontStyle: 'italic',
+              fontWeight: 700,
+              fontSize: '11pt'
+            }}
+          >
+            {journalFront.author}
+          </div>
+        )}
+        {journalFront.affiliation && (
+          <div
+            style={{
+              textAlign: 'center',
+              fontStyle: 'italic',
+              fontSize: '10pt',
+              marginBottom: '0.4cm'
+            }}
+          >
+            {journalFront.affiliation}
+          </div>
+        )}
+        {journalFront.abstracts.map((abs, index) => (
+          <div key={`${abs.heading}-${index}`} style={{ marginBottom: '0.35cm' }}>
+            <div
+              style={{
+                textAlign: 'center',
+                fontWeight: 700,
+                fontSize: '11pt',
+                marginBottom: '0.15cm'
+              }}
+            >
+              {abs.heading}
+            </div>
+            {abs.body && (
+              <div
+                style={{
+                  fontStyle: 'italic',
+                  textAlign: 'justify',
+                  fontSize: '10pt',
+                  lineHeight: 1.3
+                }}
+              >
+                {abs.body}
+              </div>
+            )}
+            {abs.keywords && (
+              <div style={{ fontStyle: 'italic', fontSize: '10pt', marginTop: '0.15cm' }}>
+                {abs.heading.toLowerCase() === 'abstract' ? 'Keyword' : 'Kata kunci'} :{' '}
+                {abs.keywords}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    ) : null;
 
   // Fit-to-width: di layar sempit zoom efektif dibatasi agar halaman A4
   // selalu pas lebar kontainer (tidak terpotong). Manual (± / preset)
@@ -1193,6 +1306,13 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
           pointerEvents: 'none'
         }}
       >
+        {/* Furniture jurnal diukur pada lebar halaman penuh (bukan kolom). */}
+        {journalHeaderNode || journalFrontNode ? (
+          <div style={{ width: `${contentWidthMm}mm` }}>
+            {journalHeaderNode}
+            {journalFrontNode}
+          </div>
+        ) : null}
         {items.map((item) => renderItem(item, false))}
       </div>
 
@@ -1263,102 +1383,11 @@ export const A4PaperPreview: React.FC<A4PaperPreviewProps> = ({
                 >
                   {/* Header jurnal di atas setiap halaman: kiri nama+edisi italic,
                       kanan ISSN — ala PDF Berkala Fisika. */}
-                  {isJournal &&
-                    (journal?.name?.trim() ||
-                      journal?.volumeInfo?.trim() ||
-                      journal?.issn?.trim()) && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        marginBottom: '0.4cm',
-                        fontSize: '10pt',
-                        lineHeight: 1.4
-                      }}
-                    >
-                      <div style={{ fontStyle: 'italic' }}>
-                        {journal?.name?.trim() && <div style={{ fontWeight: 700 }}>{journal.name}</div>}
-                        {journal?.volumeInfo?.trim() && <div>{journal.volumeInfo}</div>}
-                      </div>
-                      {journal?.issn?.trim() && (
-                        <div style={{ fontStyle: 'italic', fontWeight: 700 }}>{journal.issn}</div>
-                      )}
-                    </div>
-                  )}
+                  {journalHeaderNode}
 
                   {/* Front matter artikel: judul + penulis + abstrak — satu
                       kolom penuh, hanya di halaman pertama. */}
-                  {isJournal && pageIndex === 0 && journalFront && (
-                    <div style={{ marginBottom: '0.4cm' }}>
-                      <div
-                        style={{
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          fontSize: '14pt',
-                          marginBottom: '0.3cm'
-                        }}
-                      >
-                        {journalFront.title}
-                      </div>
-                      {journalFront.author && (
-                        <div
-                          style={{
-                            textAlign: 'center',
-                            fontStyle: 'italic',
-                            fontWeight: 700,
-                            fontSize: '11pt'
-                          }}
-                        >
-                          {journalFront.author}
-                        </div>
-                      )}
-                      {journalFront.affiliation && (
-                        <div
-                          style={{
-                            textAlign: 'center',
-                            fontStyle: 'italic',
-                            fontSize: '10pt',
-                            marginBottom: '0.4cm'
-                          }}
-                        >
-                          {journalFront.affiliation}
-                        </div>
-                      )}
-                      {journalFront.abstracts.map((abs, index) => (
-                        <div key={`${abs.heading}-${index}`} style={{ marginBottom: '0.35cm' }}>
-                          <div
-                            style={{
-                              textAlign: 'center',
-                              fontWeight: 700,
-                              fontSize: '11pt',
-                              marginBottom: '0.15cm'
-                            }}
-                          >
-                            {abs.heading}
-                          </div>
-                          {abs.body && (
-                            <div
-                              style={{
-                                fontStyle: 'italic',
-                                textAlign: 'justify',
-                                fontSize: '10pt',
-                                lineHeight: 1.3
-                              }}
-                            >
-                              {abs.body}
-                            </div>
-                          )}
-                          {abs.keywords && (
-                            <div style={{ fontStyle: 'italic', fontSize: '10pt', marginTop: '0.15cm' }}>
-                              {abs.heading.toLowerCase() === 'abstract' ? 'Keyword' : 'Kata kunci'} :{' '}
-                              {abs.keywords}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {isJournal && pageIndex === 0 ? journalFrontNode : null}
 
                   {isJournal ? (
                     <div className="journal-columns">{pageItems.map((item) => renderItem(item, true))}</div>

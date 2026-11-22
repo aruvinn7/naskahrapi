@@ -57,8 +57,8 @@ Susun lengkap sesuai urutan: judul artikel, penulis, afiliasi, ABSTRACT (bahasa 
 Gunakan sitasi bernomor dalam kurung siku sesuai urutan kemunculan: [1], [2], atau gabungan [1], [3].
 
 4. DAFTAR PUSTAKA
-Beri judul bagian Daftar Pustaka (dengan tanda pagar), lalu tulis satu entri lengkap per baris TANPA nomor di awal (nomor akan dirapikan otomatis):
-Das, B., 1998, Mekanika Tanah (Prinsip-Prinsip Rekayasa Geoteknis) Jilid-1, Penerbit Erlangga, Jakarta.
+Beri judul bagian Daftar Pustaka (dengan tanda pagar), lalu tulis SATU entri lengkap per baris TANPA nomor di awal (nomor akan dirapikan otomatis), dan PISAHKAN setiap entri dengan satu baris kosong:
+Das, B. (1998). Mekanika Tanah (Prinsip-Prinsip Rekayasa Geoteknis) Jilid-1. Penerbit Erlangga, Jakarta.
 
 ${COMMON_RULES}`;
 

@@ -44,6 +44,27 @@ describe('contoh draf AI — artikel jurnal', () => {
     const pustaka = doc.sections.find((s) => s.type === 'daftar_pustaka');
     expect(pustaka?.blocks.length).toBeGreaterThanOrEqual(5);
   });
+
+  it('entri pustaka multi-baris tidak terpecah per kalimat', () => {
+    const pustaka = doc.sections.find((s) => s.type === 'daftar_pustaka');
+    const items = (pustaka?.blocks ?? []).filter((b) => b.type === 'daftar_pustaka_item');
+    // 6 entri sumber — masing-masing utuh satu blok.
+    expect(items.length).toBe(6);
+    expect(items[1].formattedContent).toContain('Handbook of Modern Sensors');
+    expect(items[1].formattedContent).toContain('Springer, California');
+    expect(items.some((b) => b.formattedContent.trim() === 'Fraden, J. (1996).')).toBe(false);
+  });
+
+  it('contoh jurnal panjang — artikel penuh multi-halaman', () => {
+    // Draf harus cukup panjang untuk mengisi beberapa halaman dua kolom.
+    expect(SAMPLE_JOURNAL_RAW_TEXT.length).toBeGreaterThan(8000);
+    const bab = doc.sections.filter((s) => s.type === 'bab');
+    const totalParagraphs = bab.reduce(
+      (sum, s) => sum + s.blocks.filter((b) => b.type === 'paragraph').length,
+      0
+    );
+    expect(totalParagraphs).toBeGreaterThanOrEqual(14);
+  });
 });
 
 describe('getSampleAiText / getSampleFileName', () => {

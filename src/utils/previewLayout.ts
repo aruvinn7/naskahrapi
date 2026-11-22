@@ -319,7 +319,10 @@ export function paginate(
   items: FlowItem[],
   heights: Record<string, number>,
   capacityPx: number,
-  breakBefore?: Set<string>
+  breakBefore?: Set<string>,
+  /** Kapasitas per nomor halaman (0-based) — dipakai jurnal untuk mengurangi
+   * tinggi header jurnal & front matter halaman pertama. */
+  pageCapacity?: (pageIndex: number) => number
 ): FlowItem[][] {
   const pages: FlowItem[][] = [];
   let current: FlowItem[] = [];
@@ -333,6 +336,8 @@ export function paginate(
     }
   };
 
+  const capFor = (pageIndex: number) => (pageCapacity ? pageCapacity(pageIndex) : capacityPx);
+
   for (let index = 0; index < items.length; index++) {
     const item = items[index];
     // Halaman cover selalu memenuhi satu lembar penuh.
@@ -343,14 +348,16 @@ export function paginate(
       flush();
     }
 
+    const capacityNow = capFor(pages.length);
+
     // Caption tabel harus tetap satu halaman dengan tabel di bawahnya.
     if (item.keepWithNext) {
       const next = items[index + 1];
       const needed = height + (next ? heights[next.id] ?? 0 : 0);
-      if (current.length > 0 && currentHeight + needed > capacityPx) flush();
+      if (current.length > 0 && currentHeight + needed > capacityNow) flush();
     }
 
-    const wouldOverflow = current.length > 0 && currentHeight + height > capacityPx;
+    const wouldOverflow = current.length > 0 && currentHeight + height > capacityNow;
 
     // Jangan biarkan judul menggantung sendiri di dasar halaman.
     if (wouldOverflow && isHeadingItem(item) === false && isHeadingItem(current[current.length - 1])) {
@@ -361,7 +368,7 @@ export function paginate(
       currentHeight += heights[lastHeading.id] ?? 0;
     }
 
-    if (current.length > 0 && currentHeight + height > capacityPx) {
+    if (current.length > 0 && currentHeight + height > capacityNow) {
       flush();
     }
 

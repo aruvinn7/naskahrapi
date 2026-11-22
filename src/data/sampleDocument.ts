@@ -139,7 +139,11 @@ Kata kunci : pergeseran, digital, serial
 # Pendahuluan
 Pembangunan perumahan untuk memenuhi kebutuhan akan tempat tinggal dan juga pembangunan jalan raya sebagai jalur transportasi mengakibatkan pembukaan lahan untuk memenuhi kebutuhan tersebut juga bertambah. Pada dasarnya tanah merupakan material yang terdiri dari agregat (butiran) mineral-mineral padat yang tidak tersementasi satu sama lain dan dari bahan-bahan organik yang telah melapuk, disertai dengan zat cair dan gas yang mengisi ruang-ruang kosong di antara partikel-partikel padat tersebut [1].
 
-Penambahan beban lalu lintas pada konstruksi perkerasan jalan dan perumahan akan mempengaruhi pergerakan tanah di bawahnya yang akan menyebabkan keretakan di jalan raya dan tanah longsor. Oleh karena itu diperlukan alat ukur pergeseran tanah yang bekerja secara digital sehingga dapat dihubungkan langsung ke komputer untuk pemantauan berkelanjutan [2].
+Penambahan beban lalu lintas pada konstruksi perkerasan jalan dan perumahan akan mempengaruhi pergerakan tanah di bawahnya yang akan menyebabkan keretakan di jalan raya dan tanah longsor. Pergerakan tanah yang tidak terdeteksi sejak dini berpotensi merusak infrastruktur vital seperti jembatan, tanggul pengendali banjir, dan gedung bertingkat, sehingga pemantauan pergeseran tanah secara berkala menjadi kebutuhan yang mendesak di wilayah-wilayah yang memiliki kondisi geoteknik rawan.
+
+Metode pemantauan pergeseran tanah yang umum digunakan saat ini masih bersifat manual, seperti penggunaan milestone pengukuran, waterpass, maupun pengukuran geodetik secara periodik. Metode manual tersebut membutuhkan waktu, tenaga, dan biaya yang besar, serta hasil pembacaannya baru diketahui setelah pengukuran lapangan selesai dilakukan. Di masa sekarang, manusia tidak lepas dari perangkat berbasis elektronika digital; perangkat komputer hampir digunakan di segala bidang baik jasa, produksi, maupun rumah tangga untuk mempermudah aktivitas. Kecepatan pemrosesan data secara digital memungkinkan pembacaan kondisi tanah dilakukan secara langsung dan berkelanjutan.
+
+Berdasarkan uraian di atas, penelitian ini bertujuan merancang bangun sensor sistem pergeseran tanah digital yang memanfaatkan potensiometer geser sebagai sensor utama, mikrokontroler ATmega8535 sebagai pengolah data, serta komunikasi serial komputer sebagai antarmuka pembacaan. Artikel ini disusun dengan urutan sebagai berikut: bagian Dasar Teori menjelaskan prinsip kerja komponen yang digunakan, bagian Metoda Penelitian menguraikan rancangan perangkat keras dan perangkat lunak, dan bagian Hasil dan Pembahasan menyajikan data pengujian beserta analisis karakteristik sensor yang dihasilkan [2].
 
 # Dasar Teori
 Potensio geser merupakan salah satu jenis resistor variabel yaitu resistor yang dapat diubah nilai tahanannya. Potensiometer geser memiliki sebuah pita film yang disebut sebagai jalur (track) yang terbuat dari karbon konduktif. Ujung-ujung jalur terhubung ke dua buah terminal potensiometer [3].
@@ -154,28 +158,53 @@ Tabel 1.1: Hubungan translasi wiper dengan perubahan resistansi
 | 30 | 4,98 | 2,99 |
 | 57 | 9,86 | 4,51 |
 
-Proses pengubahan terjadi pada analog to digital converter. Proses pengubahan ini dikenal juga dengan nama sistem akuisisi data. Terdapat empat macam pengubah data analog menjadi data digital yang memenuhi standar industri, yaitu integrating, tracking converter, successive approximation dan flash/paralel [4].
+Proses pengubahan terjadi pada analog to digital converter. Proses pengubahan ini dikenal juga dengan nama sistem akuisisi data. Terdapat empat macam pengubah data analog menjadi data digital yang memenuhi standar industri, yaitu integrating, tracking converter, successive approximation dan flash/paralel. Keempat jenis pengubah data tersebut mewakili beberapa macam pertimbangan di antaranya resolusi, kecepatan konversi, dan biaya [4].
+
+Metoda pengubah analog ke digital successive approximation memasukkan cuplikan tegangan yang dibandingkan dengan tegangan-tegangan berturutan yang dibangkitkan oleh successive approximation register (SAR). Proses ini dimulai pada skala separuh penuh dan jika berbeda dengan tegangan dari cuplikan, SAR akan mengatur keluaran digital sesuai kebutuhan. Sebagai contoh, pengubah 8 bit digunakan untuk menentukan arus logika setiap bit secara keseluruhan mulai dari bit signifikan terbesar; jika frekuensi detak 10 KHz, seluruh proses pencarian selesai dalam waktu yang tetap tidak bergantung pada arus masukan. Successive approximation dapat dikendalikan oleh perangkat lunak, dan hal ini dikenali dari sistem berdasarkan mikroprosesor yang relatif lebih cepat serta berukuran kecil. Keuntungan tambahan adalah setiap cuplikan diubah pada selang waktu yang sama [4].
+
+Mikrokontroler AVR merupakan keluarga mikrokontroler RISC (Reduced Instruction Set Computing) yang dikeluarkan Atmel. Konsep arsitektur AVR pada mulanya dibuat oleh dua orang mahasiswa di Norwegian Institute of Technology (NTH) yaitu Alf-Egil Bogen dan Vegard Wollan, yang kemudian dikembangkan lebih lanjut oleh perusahaan Atmel. Sampai saat penulisan artikel ini, Atmel telah mengeluarkan beberapa keluarga AVR yang terakhir adalah keluarga AVR 32 bit RISC [6].
+
+ATMega8535 memiliki resolusi ADC 10 bit dengan 8 channel input dan mendukung 16 macam penguat beda. ADC ini bekerja dengan teknik successive approximation. Rangkaian internal ADC memiliki catu daya tersendiri yaitu pin AVCC yang tegangannya harus sama dengan VCC ± 0,3 V. Untuk mengatur mode dan cara kerja ADC dilakukan melalui register ADMUX (ADC Multiplexer Selection Register), ADCSRA (ADC Control and Status Register A), ADCL, ADCH dan SFIOR.
+
+Selain ADC 10 bit, USART juga merupakan salah satu mode komunikasi serial yang dimiliki ATMega8535. USART merupakan komunikasi yang memiliki fleksibilitas tinggi yang dapat digunakan untuk melakukan transfer data baik antar mikrokontroler maupun dengan modul-modul eksternal termasuk PC yang memiliki fitur UART. USART memungkinkan transmisi data baik secara synchronous maupun asynchronous sehingga USART pasti kompatibel dengan UART. Secara umum pengaturan mode komunikasi pada ATMega8535 adalah sama; untuk mode asynchronous hanya membutuhkan 2 pin yaitu TXD dan RXD, sedangkan untuk mode synchronous harus 3 pin yaitu TXD, RXD dan XCK. Pengaturan mode dan prosedur komunikasi USART dilakukan melalui register UCSRA, UCSRB, UCSRC, UBRRH, UBRRL dan UDR [6].
 
 # Metoda Penelitian
 Pada perancangan sensor sistem pergeseran tanah ini menggunakan potensio geser sebagai sensor yang berfungsi untuk mengukur besar pergeseran tanah. Pergeseran dari potensio geser menyebabkan perubahan pada hambatan keluaran yang dapat mewakili besar pergeseran tanah. Potensio geser dihubungkan dengan sumber arus tetap, sehingga tegangan keluarannya sebanding dengan pergeseran translasinya [5].
 
-Tegangan keluaran tersebut dibaca oleh mikrokontroler ATmega8535. Pemrograman yang harus dilakukan pertama kali adalah melakukan inisialisasi port dan inisialisasi ADC meliputi proses penentuan clock, tegangan referensi, format output data dan mode pembacaan. Register yang perlu diset nilainya adalah ADMUX (ADC Multiplexer Selection Register) dan ADCSRA (ADC Control and Status Register A).
+Diagram blok dari sistem sensor pergeseran tanah ini terdiri dari potensio geser yang dipancangkan pada tanah menggunakan dua pancang, mikrokontroler ATmega8535 yang membaca tegangan keluaran melalui ADC 10 bit, antarmuka RS-232 untuk komunikasi data, dan komputer sebagai pembaca data. Aliran kerja sistem dimulai dari perubahan posisi wiper potensio yang mengikuti pergeseran tanah, konversi tegangan menjadi data digital 10 bit, pengiriman data multi bit melalui protokol UART, hingga tampilan hasil pembacaan pada layar komputer [6].
 
-Diagram blok dari sistem sensor pergeseran tanah ini terdiri dari potensio geser yang dipancangkan pada tanah, mikrokontroler ATmega8535, antarmuka RS-232 dan komputer sebagai pembaca data [6].
+Pada mikrokontroler ATMega8535, pemrograman yang harus dilakukan pertama kali adalah melakukan inisialisasi port dan inisialisasi ADC. Proses ini meliputi penentuan clock, tegangan referensi, format output data dan mode pembacaan. Register yang perlu diset nilainya adalah ADMUX dan ADCSRA. Setelah proses inisialisasi dilakukan, mikrokontroler langsung mengkonversi data masukan analog menjadi data digital yang kemudian disimpan dalam sebuah register.
+
+Pengiriman data digital serial dilakukan dengan mengeset register-register yang berhubungan dengan komunikasi serial serta memberikan nilai baudrate untuk kecepatan komunikasinya. Register UBRRH dan UBRRL diisi dengan nilai pembagi detak sesuai baudrate yang diinginkan, register UCSRB diaktifkan untuk penerimaan dan pengiriman data (RXEN dan TXEN), serta register UCSRC diatur untuk memilih panjang data dan bit stop.
+
+Untuk dapat berkomunikasi dengan komputer secara serial diperlukan program aplikasi yang berfungsi untuk mengirim dan menerima data. Dalam membuat perangkat lunak dipergunakan bahasa pemrograman Delphi-7.0 dengan komponen comport. Prosedur utama pembacaan dilakukan secara periodik melalui komponen timer: komputer mengirim perintah pembacaan byte rendah dan byte tinggi, data gabungan kedua byte tersebut dihitung menjadi nilai pergeseran dalam satuan milimeter, kemudian ditampilkan pada layar komputer secara real time.
 
 # Hasil dan Pembahasan
-Pengujian sistem sensor pergeseran tanah dilakukan dengan menghubungkan rangkaian pendeteksi pergeseran tanah dengan tegangan 5 Volt dan multitester pada keluarannya. Pengujian dilakukan mulai dari jarak pergeseran 1 mm sampai pada jarak maksimum sebesar 60 mm. Sistem dipancangkan pada tanah gundukan dan digerakkan dengan mengeser tanah tersebut serta mengukur pergeserannya dengan alat meter standar [6].
+Pengujian sistem sensor pergeseran tanah dilakukan dengan menghubungkan rangkaian pendeteksi pergeseran tanah dengan tegangan 5 Volt dan multitester pada keluarannya. Pengujian yang dilakukan dimulai dari jarak pergeseran 1 mm sampai pada jarak maksimum sebesar 60 mm. Sistem dipancangkan pada tanah gundukan dan digerakkan dengan mengeser tanah tersebut serta mengukur pergeserannya dengan alat meter standar sebagai pembanding. Data hasil pengamatan pencatatan tegangan keluaran sensor dilakukan pada setiap 1 mm pergeseran.
 
-Dari grafik pengujian dapat dijelaskan bahwa keluaran tegangan sensor terhadap jarak tidak linier. Karakteristiknya membentuk persamaan y = 0,001x2 - 0,019x + 1,163 dengan korelasi antar kedua variabel 0,983. Rentang sensor berkisar antara 0 s.d 57 mm, di atas rentang tersebut karakteristiknya telah berubah dan tidak memiliki tren yang baik.
+Dari grafik pengujian dapat dijelaskan bahwa keluaran tegangan sensor terhadap jarak tidak linier. Karakteristiknya membentuk persamaan y = 0,001x2 - 0,019x + 1,163 dimana x adalah jarak pergeseran dan y adalah keluaran tegangan. Dari persamaan tersebut diperoleh korelasi antar kedua variabel sebesar 0,983. Rentang sensor juga berkisar antara 0 s.d 57 mm; di atas rentang tersebut karakteristiknya telah berubah dan tidak memiliki tren yang baik.
 
-Maka secara elektronik diselesaikan dengan metoda look-up table yang ditulis pada mikrokontroler. Metode ini menghasilkan keluaran sensor linier terhadap pergeseran tanah dengan persamaan y = 0,990x + 0,154 dan korelasi 99,8 persen.
+Keluaran yang tidak linier ini terjadi karena karakteristik jalur karbon pada potensiometer geser yang tidak sepenuhnya homogen, ditambah dengan pengaruh kontak mekanis wiper terhadap permukaan jalur. Perbedaan tegangan keluaran pada setiap pergeseran 1 mm yang didapat tidak sama, sehingga pembacaan langsung tegangan belum dapat dijadikan representasi pergeseran tanah yang akurat.
+
+Maka secara elektronik permasalahan tersebut diselesaikan dengan metoda look-up table yang ditulis pada mikrokontroler. Nilai tegangan pembacaan ADC dipetakan ke tabel konversi pergeseran yang diperoleh dari hasil kalibrasi terhadap besaran referensi penggaris. Metode ini menghasilkan keluaran sensor yang linier terhadap pergeseran tanah sekaligus melakukan kalibrasi terhadap besaran referensi dari keluaran tersebut.
+
+Dari program yang dibuat diperoleh karakteristik sensor sistem yang linier dengan persamaan y = 0,990x + 0,154 dan korelasi sebesar 99,8 persen. Keluaran rangkaian pendeteksi pergeseran tanah menunjukkan bahwa setiap pergeseran tanah yang terjadi setiap 1 mm tegangan keluaran yang didapat telah konsisten mengikuti tren linier. Resolusi sistem mencapai 1 mm dengan rentang pengukuran hingga 57 meter berdasarkan panjang kabel sensor yang dipakai.
+
+Dibandingkan dengan metode pengukuran manual yang umum digunakan, sistem yang dibangun mampu melakukan pembacaan dalam selang waktu yang dapat diatur dan langsung ditampilkan pada komputer. Data yang tersimpan juga dapat diolah lebih lanjut untuk analisis tren pergeseran dalam jangka waktu panjang, sesuatu yang sulit dilakukan pada pencatatan manual.
+
+Keterbatasan dari sistem yang dibuat antara lain: rentang pengukuran terbatas oleh panjang jalur potensiometer yang dipakai, ketahanan komponen terhadap cuaca luar ruang belum dioptimalkan, dan komunikasi data masih menggunakan kabel RS-232. Penelitian lanjutan disarankan untuk mengganti antarmuka komunikasi dengan modul nirkabel serta memperluas rentang pengukuran sensor agar dapat dipakai pada wilayah pemantauan yang lebih luas.
 
 # Daftar Pustaka
 Das, B. (1998). Mekanika Tanah (Prinsip-Prinsip Rekayasa Geoteknis) Jilid-1. Penerbit Erlangga, Jakarta.
+
 Fraden, J. (1996). Handbook of Modern Sensors. Springer, California.
+
 Webster, J. (1999). The Measurement, Instrumentation and Sensors Handbook. IEEE Press, America.
+
 Tirtamiharja. (1996). Elektronik Digital. Andi Offset, Yogyakarta.
+
 Milman dan Halkias. (1993). Elektronika Terpadu. Jakarta, Erlangga.
+
 Wardhana, L. (2006). Belajar Sendiri Mikrokontroler AVR Seri ATMega8535. ANDI, Yogyakarta.
 
 Semoga artikel jurnal ini bermanfaat untuk publikasi Anda! Jangan ragu bertanya jika butuh bagian tambahan.`;
